@@ -1,0 +1,67 @@
+{% extends "taban.html" %}
+{# Profil sayfası (8. hafta): hesap bilgileri, çalışma serisi, etkinlik takvimi, şifre değiştirme #}
+
+{% block baslik %}Profilim · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Merhaba, {{ bilgi.kullanici_adi }}</h1>
+    <p class="aciklama">
+      {{ 'Öğretmen' if bilgi.rol == 'ogretmen' else 'Öğrenci' }} hesabı ·
+      {{ bilgi.olusturma_zamani | tarih }} tarihinden beri KodKoç'tasın.
+    </p>
+
+    <!-- Özet sayılar: Geçmiş sayfasındaki .ozet kutularıyla aynı tasarım -->
+    <div class="ozet">
+      <div><strong>{{ simdiki_seri }} gün</strong><span>şu anki serin</span></div>
+      <div><strong>{{ en_uzun_seri }} gün</strong><span>en uzun serin</span></div>
+      <div><strong>{{ bilgi.biten_adim }}</strong><span>adım tamamladın</span></div>
+    </div>
+
+    <!-- Çalışma serisi mesajı: öğrenciyi her gün biraz çalışmaya teşvik eder -->
+    {% if simdiki_seri == 0 %}
+    <p class="seri-mesaji">Bugün küçük bir adım at, serin başlasın!</p>
+    {% elif not bugun_calisti %}
+    <p class="seri-mesaji">Serin {{ simdiki_seri }} gün. Bugün de bir şey yaparsan seri devam eder!</p>
+    {% else %}
+    <p class="seri-mesaji">Harika, bugün de çalıştın. Serin {{ simdiki_seri }} gün!</p>
+    {% endif %}
+
+    <!-- Etkinlik takvimi: her kare bir gün; ne kadar koyuysa o gün o kadar çok çalışılmış -->
+    <section class="kart profil-bolumu">
+      <h2 class="ara-baslik">Son 4 hafta</h2>
+      <div class="takvim" role="table" aria-label="Son 4 haftanın çalışma takvimi">
+        <div class="takvim-satiri" role="row">
+          {% for gun_adi in ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] %}
+          <span class="takvim-gun-adi" role="columnheader">{{ gun_adi }}</span>
+          {% endfor %}
+        </div>
+        {% for hafta in takvim %}
+        <div class="takvim-satiri" role="row">
+          {% for gun in hafta %}
+          <!-- title: fare üstüne gelince tarih ve etkinlik sayısı görünür -->
+          <span class="takvim-kare seviye-{{ gun.seviye }} {% if gun.gelecek %}gelecek{% endif %}" role="cell"
+                title="{{ gun.tarih }}{% if not gun.gelecek %}: {{ gun.sayi }} etkinlik{% endif %}"
+                aria-label="{{ gun.tarih }}{% if not gun.gelecek %}: {{ gun.sayi }} etkinlik{% endif %}"></span>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <p class="ipucu-yazi">Etkinlik: yol haritası çıkarmak, adım bitirmek, ipucu almak, koça soru sormak, kod incelettirmek.</p>
+    </section>
+
+    <!-- Şifre değiştirme -->
+    <section class="kart profil-bolumu">
+      <h2 class="ara-baslik">Şifremi değiştir</h2>
+      <form method="post" action="{{ url_for('sifre_degistir') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <!-- autocomplete: tarayıcının şifre yöneticisi hangi alanın ne olduğunu anlasın -->
+        <label for="eski_sifre">Şu anki şifren</label>
+        <input type="password" id="eski_sifre" name="eski_sifre" autocomplete="current-password" required>
+        <label for="yeni_sifre">Yeni şifre <span class="istege-bagli">(en az {{ en_kisa_sifre }} karakter)</span></label>
+        <input type="password" id="yeni_sifre" name="yeni_sifre" minlength="{{ en_kisa_sifre }}" autocomplete="new-password" required>
+        <label for="yeni_sifre_tekrar">Yeni şifre (tekrar)</label>
+        <input type="password" id="yeni_sifre_tekrar" name="yeni_sifre_tekrar" minlength="{{ en_kisa_sifre }}" autocomplete="new-password" required>
+        <button type="submit">Şifreyi değiştir</button>
+      </form>
+    </section>
+{% endblock %}

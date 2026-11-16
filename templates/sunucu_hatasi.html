@@ -1,0 +1,13 @@
+{% extends "taban.html" %}
+{# 500 sayfası: programda beklenmedik bir hata olunca gösterilir (9. hafta, canlıya geçiş) #}
+
+{% block baslik %}Bir aksilik oldu · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart dar">
+      <p class="buyuk-not">Ups, bir şeyler ters gitti.</p>
+      <h1>Bir aksilik oldu</h1>
+      <p class="aciklama">Sorun bizde, senin yaptığın bir şey değil. Birkaç saniye sonra sayfayı yenilemeyi dene. Düzelmezse öğretmenine haber ver.</p>
+      <a class="dugme-link" href="{{ url_for('ana_sayfa') }}">Ana sayfaya dön</a>
+    </section>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "taban.html" %}
+{# Kayıt sayfası (8. hafta) #}
+
+{% block baslik %}Kayıt ol · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart dar">
+      <h1>Hesabını oluştur</h1>
+      <p class="aciklama">Yol haritaların, ilerlemen, ipuçların ve notların hesabında saklanır. Başkaları onları göremez.</p>
+
+      {% if hata %}<p class="hata">{{ hata }}</p>{% endif %}
+
+      <!-- Tarayıcı kontrolleri (minlength, pattern) sadece kolaylık içindir;
+           asıl kontrol app.py'deki kayit() fonksiyonunda yapılır. -->
+      <form method="post" action="{{ url_for('kayit') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="kullanici_adi">Kullanıcı adı</label>
+        <input type="text" id="kullanici_adi" name="kullanici_adi" value="{{ kullanici_adi or '' }}"
+               autocomplete="username" minlength="3" maxlength="20" required autofocus>
+        <p class="ipucu-yazi">3-20 karakter; harf, rakam, nokta ya da alt çizgi.</p>
+
+        <label for="sifre">Şifre</label>
+        <input type="password" id="sifre" name="sifre" autocomplete="new-password" minlength="6" required>
+        <p class="ipucu-yazi">En az 6 karakter.</p>
+
+        <label for="sifre_tekrar">Şifre (tekrar)</label>
+        <input type="password" id="sifre_tekrar" name="sifre_tekrar" autocomplete="new-password" minlength="6" required>
+
+        {# ogretmen_kaydi: "serbest" (yerel), "kodlu" (davet kodu ister), "kapali" (canlıda kod yoksa) #}
+        {% if ogretmen_kaydi != 'kapali' %}
+        <!-- fieldset/legend: birbiriyle ilgili seçenekleri bir başlık altında toplar -->
+        <fieldset class="rol-secimi">
+          <legend>Ben bir…</legend>
+          <label class="secenek">
+            <input type="radio" name="rol" value="ogrenci" {% if rol != 'ogretmen' %}checked{% endif %}>
+            <span><strong>Öğrenciyim</strong> Yol haritası çıkarıp adım adım ilerleyeceğim.</span>
+          </label>
+          <label class="secenek">
+            <input type="radio" name="rol" value="ogretmen" {% if rol == 'ogretmen' %}checked{% endif %}>
+            <span><strong>Öğretmenim</strong> Sınıf açıp öğrencilerimin ilerlemesini takip edeceğim.</span>
+          </label>
+        </fieldset>
+        {% endif %}
+
+        {% if ogretmen_kaydi == 'kodlu' %}
+        <label for="ogretmen_kodu">Öğretmen davet kodu <span class="istege-bagli">(sadece öğretmenler)</span></label>
+        <input type="password" id="ogretmen_kodu" name="ogretmen_kodu" autocomplete="off">
+        <p class="ipucu-yazi">Öğrenciysen boş bırak.</p>
+        {% endif %}
+
+        <button type="submit">Kayıt ol</button>
+      </form>
+      <p class="alt-baglanti">Zaten hesabın var mı? <a href="{{ url_for('giris') }}">Giriş yap</a></p>
+    </section>
+{% endblock %}

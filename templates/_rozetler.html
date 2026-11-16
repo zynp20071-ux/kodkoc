@@ -1,0 +1,16 @@
+{# Rozet listesi (8. hafta). Başında "_" olması: tek başına sayfa değil, başka sayfalara
+   {% include "_rozetler.html" %} ile eklenen bir PARÇA olduğunu gösterir.
+   Hem öğrencinin Geçmiş sayfası hem öğretmenin öğrenci sayfası kullanır. #}
+<section class="rozetler">
+  <h2 class="ara-baslik">Rozetler <span class="gecmis-durum">({{ rozetler | selectattr('kazanildi') | list | length }} / {{ rozetler | length }})</span></h2>
+  <ul class="rozet-listesi">
+    {% for r in rozetler %}
+    <li class="rozet {% if r.kazanildi %}kazanildi{% endif %}">
+      <span class="rozet-isareti" aria-hidden="true">{{ '★' if r.kazanildi else '☆' }}</span>
+      <span class="rozet-adi">{{ r.ad }}</span>
+      <span class="rozet-aciklama">{{ r.aciklama }}</span>
+      {% if not r.kazanildi %}<span class="rozet-ilerleme">{{ r.ilerleme }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>

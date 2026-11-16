@@ -1,0 +1,55 @@
+{% extends "taban.html" %}
+{# Öğrenci: sınıfa katılma ve katıldığı sınıflar (8. hafta) #}
+
+{% block baslik %}Sınıfım · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Sınıfım</h1>
+    <p class="aciklama">Öğretmeninin verdiği 6 karakterlik kodla sınıfına katıl.</p>
+
+    <section class="kart">
+      <form method="post" action="{{ url_for('sinifa_katil') }}" class="satir-form">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="kod">Sınıf kodu</label>
+        <div class="satir">
+          <input type="text" id="kod" name="kod" placeholder="Örnek: K7M2QX" maxlength="10"
+                 autocomplete="off" class="kod-kutusu" required>
+          <button type="submit">Katıl</button>
+        </div>
+      </form>
+      <!-- Öğrenciye neyin paylaşılacağını açıkça söylüyoruz (gizlilik) -->
+      <p class="ipucu-yazi">Bir sınıfa katıldığında öğretmenin yol haritalarını, ilerlemeni, aldığın ipuçlarını ve notlarını <strong>görebilir</strong> ama değiştiremez. Sınıftan istediğin zaman ayrılabilirsin.</p>
+    </section>
+
+    {% if duyurular %}
+    <!-- Öğretmen duyuruları; daha önce görülmemiş olanlar "Yeni" etiketli -->
+    <h2 class="ara-baslik" id="duyurular">Duyurular</h2>
+    <div class="duyuru-listesi">
+      {% for d in duyurular %}
+      <div class="duyuru {% if d.yeni %}yeni{% endif %}">
+        <p class="duyuru-metni">{{ d.metin }}{% if d.yeni %} <span class="yeni-etiketi">Yeni</span>{% endif %}</p>
+        <span class="gecmis-durum">{{ d.ogretmen_adi }} · {{ d.sinif_adi }} · {{ d.olusturma_zamani | tarih }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if siniflar %}
+    <h2 class="ara-baslik">Katıldığın sınıflar</h2>
+    <ul class="gecmis-listesi">
+      {% for sinif in siniflar %}
+      <li class="sinif-ogesi">
+        <div>
+          <span class="gecmis-proje">{{ sinif.ad }}</span>
+          <span class="gecmis-durum">Öğretmen: {{ sinif.ogretmen_adi }} · Katılma: {{ sinif.katilma_zamani | tarih }}</span>
+        </div>
+        <form method="post" action="{{ url_for('siniftan_ayril', sinif_id=sinif.id) }}"
+              onsubmit="return confirm('Bu sınıftan ayrılmak istediğine emin misin? Öğretmenin artık ilerlemeni göremeyecek.');">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <button type="submit" class="sil">Ayrıl</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+{% endblock %}

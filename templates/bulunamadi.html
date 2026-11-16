@@ -1,0 +1,13 @@
+{% extends "taban.html" %}
+{# 404 sayfası: aranan sayfa yoksa ya da başka bir kullanıcıya aitse gösterilir (8. hafta) #}
+
+{% block baslik %}Bulunamadı · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart dar">
+      <p class="buyuk-not">Hmm, burada bir şey yok.</p>
+      <h1>Sayfa bulunamadı</h1>
+      <p class="aciklama">Aradığın yol haritası silinmiş ya da hiç var olmamış olabilir.</p>
+      <a class="dugme-link" href="{{ url_for('gecmis') }}">Yol haritalarıma dön</a>
+    </section>
+{% endblock %}

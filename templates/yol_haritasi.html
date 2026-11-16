@@ -1,0 +1,376 @@
+{% extends "taban.html" %}
+{# Tek bir yol haritasının sayfası: proje, ilerleme çubuğu, işaretlenebilir adımlar,
+   ipuçları ve notlar (8. hafta).
+   Öğretmen bakıyorsa (ogretmen_gorunumu dolu) sayfa SALT OKUNURDUR: düğmeler gizlenir. #}
+
+{% block baslik %}Yol haritan · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="sonuc">
+      {% if ogretmen_gorunumu %}
+      <!-- Öğretmen görünümü uyarı şeridi -->
+      <p class="ogretmen-seridi">
+        <span>Öğretmen görünümü: <strong>{{ ogretmen_gorunumu.ogrenci_adi }}</strong> adlı öğrencinin yol haritası (salt okunur)</span>
+        <a href="{{ ogretmen_gorunumu.geri_adres }}">← Geri dön</a>
+      </p>
+      <p class="etiket">Yol haritası · {{ harita.olusturma_zamani | tarih }}</p>
+      {% else %}
+      <p class="etiket">Yol haritan · {{ harita.olusturma_zamani | tarih }}</p>
+      {% endif %}
+
+      <!-- Öğrencinin anlattığı proje -->
+      <div class="proje-ozeti">{{ harita.proje }}</div>
+
+      <!-- Yazdır / PDF: tarayıcının yazdırma penceresini açar; "PDF olarak kaydet" de oradan seçilir.
+           Kâğıtta neyin görüneceğini style.css'teki @media print kuralları belirler.
+           JavaScript gerektirdiği için gizli başlar, betik çalışınca görünür. -->
+      <button type="button" id="yazdir-dugmesi" class="isaret" hidden>Yazdır / PDF</button>
+
+      {% if toplam > 0 %}
+      <!-- İlerleme çubuğu: genişliği tamamlanan adımların yüzdesi kadar -->
+      <div class="ilerleme">
+        <div class="ilerleme-yazi">
+          <span>{{ 'İlerleme' if ogretmen_gorunumu else 'İlerlemen' }}</span>
+          <span>{{ tamamlanan }} / {{ toplam }} adım · %{{ yuzde }}</span>
+        </div>
+        <div class="ilerleme-cubugu">
+          <div class="ilerleme-dolu" style="width: {{ yuzde }}%"></div>
+        </div>
+        {% if yuzde == 100 %}
+        <p class="tebrik">{{ 'Bütün adımlar tamamlanmış!' if ogretmen_gorunumu else 'Tebrikler, bütün adımları bitirdin!' }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- GitHub kutusu (8. hafta): öğrencinin gerçekten kod yazdığını commit'lerden görmek -->
+      {% if harita.github_depo or not ogretmen_gorunumu %}
+      <section class="github-kutusu" id="github">
+        {% if harita.github_depo %}
+        <div class="github-ust">
+          <div>
+            <p class="ipucu-etiket">GitHub</p>
+            <a href="https://github.com/{{ harita.github_depo }}" target="_blank" rel="noopener" class="depo-adi">{{ harita.github_depo }}</a>
+            <span class="gecmis-durum">
+              · {{ commitler | length }} commit
+              {% if harita.github_son_kontrol %}· son kontrol {{ harita.github_son_kontrol | tarih }}{% endif %}
+            </span>
+          </div>
+          {% if not ogretmen_gorunumu %}
+          <div class="github-dugmeler">
+            <form method="post" action="{{ url_for('github_yenile', harita_id=harita.id) }}" class="bekleyen-form">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="isaret">Yenile</button>
+              <p class="bekle">GitHub'a bakılıyor…</p>
+            </form>
+            <form method="post" action="{{ url_for('github_kaldir', harita_id=harita.id) }}"
+                  onsubmit="return confirm('GitHub bağlantısı kaldırılsın mı? (GitHub\'daki deposuna dokunulmaz.)');">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="sil">Kaldır</button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if commitler %}
+        <!-- Son 5 commit; [:5] listenin ilk 5 elemanını alır -->
+        <ul class="commit-listesi">
+          {% for c in commitler[:5] %}
+          <li>
+            <a href="{{ c.url }}" target="_blank" rel="noopener">{{ c.mesaj }}</a>
+            <span class="gecmis-durum">{{ c.tarih | tarih }}{% if not c.adim_id %} · adıma bağlı değil{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="ipucu-yazi">Henüz commit görünmüyor.</p>
+        {% endif %}
+
+        {% else %}
+        <!-- Henüz depo bağlanmamış -->
+        <details>
+          <summary>GitHub deponu bağla</summary>
+          <p class="ipucu-yazi">Projeni GitHub'da tutuyorsan deponu bağla; commit'lerin burada görünsün. Commit mesajına <strong>"Adım 2"</strong> gibi bir ifade yazarsan o commit ilgili adımın altına yerleşir. Depo herkese açık (public) olmalı.</p>
+          <form method="post" action="{{ url_for('github_bagla', harita_id=harita.id) }}" class="satir-form bekleyen-form">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <label for="depo" class="gizli">GitHub deposu</label>
+            <div class="satir">
+              <input type="text" id="depo" name="depo" placeholder="kullanici/proje ya da https://github.com/kullanici/proje" required>
+              <button type="submit">Bağla</button>
+            </div>
+            <p class="bekle">GitHub'a bakılıyor…</p>
+          </form>
+        </details>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {{ giris_html | safe }}
+
+      <!-- Adımlar: her biri ayrı kutu, yanında "tamamlandı" düğmesi -->
+      {% for adim in adimlar %}
+      <section class="adim {% if adim.tamamlandi %}bitti{% endif %}" id="adim-{{ adim.id }}">
+        <div class="adim-ust">
+          <!-- Numara her zaman güncel sıradan gelir (app.py: adim_basligi filtresi) -->
+          <h3>{{ adim.baslik | adim_basligi(adim.sira) }}
+            {% if adim.kendi_eklendi %}<span class="kendi-etiketi">{{ 'Öğrencinin eklediği' if ogretmen_gorunumu else 'Senin eklediğin' }}</span>{% endif %}</h3>
+          {% if ogretmen_gorunumu %}
+          <!-- Öğretmen sadece durumu görür, değiştiremez -->
+          <span class="durum-rozeti {% if adim.tamamlandi %}bitti{% endif %}">{{ '✓ Tamamlandı' if adim.tamamlandi else 'Devam ediyor' }}</span>
+          {% else %}
+          <!-- Düğmeye basınca adımın durumu tersine çevrilir (1 = tamamlandı, 0 = geri al) -->
+          <form method="post" action="{{ url_for('adim_isaretle', adim_id=adim.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <input type="hidden" name="tamamlandi" value="{{ '0' if adim.tamamlandi else '1' }}">
+            {% if adim.tamamlandi %}
+            <button type="submit" class="isaret bitti" title="Geri almak için tıkla">✓ Tamamlandı</button>
+            {% else %}
+            <button type="submit" class="isaret">Tamamladım</button>
+            {% endif %}
+          </form>
+          {% endif %}
+        </div>
+        {{ adim.icerik_html | safe }}
+
+        {% if adim.not_metni and not ogretmen_gorunumu %}
+        <!-- Not ekranda "Notum" kutusunda; yazdırırken o kutu gizlendiği için burada da var -->
+        <div class="yazdir-notu ogrenci-notu">
+          <p class="ipucu-etiket">Notum</p>
+          <p>{{ adim.not_metni }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Bu adıma bağlı commit'ler (mesajında "Adım N" geçenler) -->
+        {% if adim.commitler %}
+        <div class="adim-commitleri">
+          <p class="ipucu-etiket">Commit'ler ({{ adim.commitler | length }})</p>
+          <ul>
+            {% for c in adim.commitler %}
+            <li><a href="{{ c.url }}" target="_blank" rel="noopener">{{ c.mesaj }}</a> <span class="gecmis-durum">{{ c.tarih | tarih }}</span></li>
+            {% endfor %}
+          </ul>
+          {% if not adim.tamamlandi and not ogretmen_gorunumu %}
+          <p class="ipucu-yazi">Bu adım için commit atmışsın. Bittiyse "Tamamladım"a basmayı unutma!</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Bu adım için daha önce alınmış ipuçları -->
+        {% for ip in adim.ipuclari %}
+        <div class="ipucu">
+          <p class="ipucu-etiket">İpucu {{ ip.seviye }} / {{ en_fazla_ipucu }}</p>
+          {% if ip.soru %}<p class="ipucu-soru">{{ 'Öğrenci' if ogretmen_gorunumu else 'Sen' }}: {{ ip.soru }}</p>{% endif %}
+          {{ ip.cevap_html | safe }}
+        </div>
+        {% endfor %}
+
+        <!-- Öğretmen yorumları: hem öğrenci hem öğretmen görür -->
+        {% for y in adim.yorumlar %}
+        <div class="ogretmen-yorumu {% if y.id in yeni_yorum_idleri %}yeni{% endif %}">
+          <p class="ipucu-etiket">Öğretmen yorumu · {{ y.ogretmen_adi }}
+            {% if y.id in yeni_yorum_idleri %}<span class="yeni-etiketi">Yeni</span>{% endif %}</p>
+          <p>{{ y.metin }}</p>
+          <div class="yorum-alt">
+            <span class="gecmis-durum">{{ y.olusturma_zamani | tarih }}</span>
+            {% if ogretmen_gorunumu and y.ogretmen_id == g.kullanici.id %}
+            <form method="post" action="{{ url_for('yorum_sil', yorum_id=y.id) }}"
+                  onsubmit="return confirm('Bu yorum silinsin mi?');">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="sil">Sil</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+
+        <!-- "Kodumu incelet" geri bildirimleri (en yenisi üstte); hem öğrenci hem öğretmen görür -->
+        {% for k in adim.incelemeler %}
+        <div class="kod-incelemesi">
+          <p class="ipucu-etiket">Kod incelemesi · {{ k.zaman | tarih }}</p>
+          {% if k.aciklama %}<p class="ipucu-soru">{{ 'Öğrenci' if ogretmen_gorunumu else 'Sen' }}: {{ k.aciklama }}</p>{% endif %}
+          {{ k.geri_bildirim_html | safe }}
+          <!-- Gönderilen kod; Jinja HTML'i kaçırdığı için kodun içindeki <script> vb. çalışmaz -->
+          <details>
+            <summary>{{ 'Öğrencinin gönderdiği kod' if ogretmen_gorunumu else 'Gönderdiğin kod' }}</summary>
+            <pre class="gonderilen-kod"><code>{{ k.kod }}</code></pre>
+          </details>
+        </div>
+        {% endfor %}
+
+        <!-- "Koça soru sor" konuşması: sohbet gibi, eskiden yeniye -->
+        {% if adim.sorular %}
+        <div class="soru-konusmasi">
+          <p class="ipucu-etiket">Koça sorular ({{ adim.sorular | length }})</p>
+          {% for s in adim.sorular %}
+          <div class="balon ogrenci-balonu">
+            <span class="balon-kim">{{ 'Öğrenci' if ogretmen_gorunumu else 'Sen' }}</span>
+            <p>{{ s.soru }}</p>
+          </div>
+          <div class="balon koc-balonu">
+            <span class="balon-kim">KodKoç · {{ s.zaman | tarih }}</span>
+            {{ s.cevap_html | safe }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if ogretmen_gorunumu %}
+          {% if adim.not_metni %}
+          <div class="ogrenci-notu">
+            <p class="ipucu-etiket">Öğrencinin notu</p>
+            <p>{{ adim.not_metni }}</p>
+          </div>
+          {% endif %}
+          <!-- Öğretmen bu adıma yorum bırakabilir -->
+          <div class="adim-araclar">
+            <details>
+              <summary>Yorum yaz</summary>
+              <form method="post" action="{{ url_for('yorum_yaz', ogrenci_id=ogretmen_gorunumu.ogrenci_id, adim_id=adim.id) }}">
+                <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+                <label for="yorum-{{ adim.id }}" class="gizli">Yorum</label>
+                <textarea id="yorum-{{ adim.id }}" name="metin" rows="3" maxlength="1000" placeholder="Örnek: Döngü mantığın doğru; şimdi kullanıcı yanlış bir sayı girerse ne olacağını düşün." required></textarea>
+                <button type="submit" class="ikincil">Yorumu gönder</button>
+              </form>
+            </details>
+          </div>
+        {% else %}
+        <!-- details/summary: tıklayınca açılan, tekrar tıklayınca kapanan kutu (JavaScript gerekmez) -->
+        <div class="adim-araclar">
+          {% if adim.ipucu_hakki_var %}
+          <details>
+            <summary>{{ 'Takıldım, ipucu ver' if not adim.ipuclari else 'Hâlâ takıldım, bir ipucu daha' }}</summary>
+            <form method="post" action="{{ url_for('ipucu', adim_id=adim.id) }}" class="bekleyen-form">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="soru-{{ adim.id }}">Nerede takıldın? <span class="istege-bagli">(isteğe bağlı ama ipucunu daha iyi yapar)</span></label>
+              <textarea id="soru-{{ adim.id }}" name="soru" rows="3" placeholder="Örnek: Listeye eleman ekliyorum ama program kapanınca siliniyor."></textarea>
+              <button type="submit">İpucu {{ adim.ipuclari | length + 1 }} / {{ en_fazla_ipucu }} iste</button>
+              <p class="bekle">KodKoç düşünüyor…</p>
+            </form>
+          </details>
+          {% else %}
+          <p class="ipucu-bitti">Bu adımın bütün ipuçlarını kullandın. Şimdi araştırıp denemek sende!</p>
+          {% endif %}
+
+          {% if adim.soru_hakki > 0 %}
+          <!-- Konuşma varsa kutu açık başlasın ki öğrenci sohbete devam edebilsin -->
+          <details {% if adim.sorular %}open{% endif %}>
+            <summary>{{ 'Koça bir soru daha sor' if adim.sorular else 'Koça soru sor' }}</summary>
+            <p class="ipucu-yazi">Bu adımda anlamadığın bir kavramı sor (ör. "Liste ile sözlük arasındaki fark ne?"). KodKoç kod <strong>yazmaz</strong>, anlatır. (Kalan hak: {{ adim.soru_hakki }} / {{ en_fazla_soru }})</p>
+            <form method="post" action="{{ url_for('koca_soru_sor', adim_id=adim.id) }}" class="bekleyen-form">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="koc-soru-{{ adim.id }}" class="gizli">Sorun</label>
+              <textarea id="koc-soru-{{ adim.id }}" name="soru" rows="2" maxlength="{{ en_uzun_soru }}" required
+                        placeholder="Sorunu yaz"></textarea>
+              <button type="submit">Sor</button>
+              <p class="bekle">KodKoç düşünüyor…</p>
+            </form>
+          </details>
+          {% else %}
+          <p class="ipucu-bitti">Bu adımın bütün soru haklarını kullandın.</p>
+          {% endif %}
+
+          {% if adim.inceleme_hakki > 0 %}
+          <details>
+            <summary>Kodumu incelet</summary>
+            <p class="ipucu-yazi">Bu adım için yazdığın kodu yapıştır. KodKoç düzeltilmiş kod <strong>vermez</strong>; neye bakman gerektiğini satır numarasıyla söyler. (Kalan hak: {{ adim.inceleme_hakki }} / {{ en_fazla_inceleme }})</p>
+            <form method="post" action="{{ url_for('kod_incele', adim_id=adim.id) }}" class="bekleyen-form">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="kod-{{ adim.id }}">Kodun</label>
+              <!-- spellcheck="false": tarayıcı kodun altını kırmızıyla çizmesin -->
+              <textarea id="kod-{{ adim.id }}" name="kod" rows="8" maxlength="{{ en_uzun_kod }}" class="kod-alani"
+                        spellcheck="false" placeholder="Kodunu buraya yapıştır" required></textarea>
+              <label for="aciklama-{{ adim.id }}">Ne yapmaya çalışıyorsun? <span class="istege-bagli">(isteğe bağlı)</span></label>
+              <input type="text" id="aciklama-{{ adim.id }}" name="aciklama" maxlength="300"
+                     placeholder="Örnek: Görev silince program hata veriyor">
+              <button type="submit">İncelet</button>
+              <p class="bekle">KodKoç kodunu okuyor…</p>
+            </form>
+          </details>
+          {% else %}
+          <p class="ipucu-bitti">Bu adımın bütün kod inceleme haklarını kullandın.</p>
+          {% endif %}
+
+          <details {% if adim.not_metni %}open{% endif %}>
+            <summary>{{ 'Notum' if adim.not_metni else 'Not al' }}</summary>
+            <form method="post" action="{{ url_for('not_kaydet', adim_id=adim.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="not-{{ adim.id }}" class="gizli">Not</label>
+              <textarea id="not-{{ adim.id }}" name="not_metni" rows="3" placeholder="Bu adımda ne öğrendin, nasıl çözdün? Kendine not bırak.">{{ adim.not_metni }}</textarea>
+              <button type="submit" class="ikincil">Notu kaydet</button>
+            </form>
+          </details>
+
+          <!-- Adımı düzenleme / silme: yapay zekânın planı öğrenciye tam uymayabilir -->
+          <details>
+            <summary>Adımı düzenle</summary>
+            <form method="post" action="{{ url_for('adim_duzenle', adim_id=adim.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="baslik-{{ adim.id }}">Başlık <span class="istege-bagli">(numarayı yazmana gerek yok)</span></label>
+              <input type="text" id="baslik-{{ adim.id }}" name="baslik" maxlength="120" value="{{ adim.baslik_sade }}" required>
+              <label for="icerik-{{ adim.id }}">Açıklama</label>
+              <textarea id="icerik-{{ adim.id }}" name="icerik" rows="4" maxlength="2000">{{ adim.icerik }}</textarea>
+              <button type="submit" class="ikincil">Kaydet</button>
+            </form>
+            {% if adimlar | length > 1 %}
+            <form method="post" action="{{ url_for('adim_sil', adim_id=adim.id) }}"
+                  onsubmit="return confirm('Bu adım; ipuçları, notu, yorumları, soruları ve kod incelemeleriyle birlikte silinecek. Emin misin?');">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="sil">Bu adımı sil</button>
+            </form>
+            {% endif %}
+          </details>
+        </div>
+        {% endif %}
+      </section>
+      {% endfor %}
+
+      {% if not ogretmen_gorunumu and adimlar %}
+      <!-- Öğrenci yol haritasının sonuna kendi adımını ekleyebilir -->
+      <details class="adim-ekle-kutusu">
+        <summary>+ Kendi adımını ekle</summary>
+        <form method="post" action="{{ url_for('adim_ekle', harita_id=harita.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label for="yeni-baslik">Başlık</label>
+          <input type="text" id="yeni-baslik" name="baslik" maxlength="120" required
+                 placeholder="Örnek: Programa renkli menü ekle">
+          <label for="yeni-icerik">Açıklama <span class="istege-bagli">(isteğe bağlı)</span></label>
+          <textarea id="yeni-icerik" name="icerik" rows="3" maxlength="2000"
+                    placeholder="Bu adımda ne yapacaksın, nasıl anlayacaksın bittiğini?"></textarea>
+          <button type="submit" class="ikincil">Adımı ekle</button>
+        </form>
+      </details>
+      {% endif %}
+
+      {{ dikkat_html | safe }}
+
+      {% if not ogretmen_gorunumu %}
+      {% if harita.dosya_yolu %}
+      <p class="kayit">Dosya olarak da kaydedildi: {{ harita.dosya_yolu }}</p>
+      {% endif %}
+
+      <!-- Silme: confirm() tarayıcıda "Emin misin?" penceresi açar; İptal'e basılırsa form gönderilmez -->
+      <form method="post" action="{{ url_for('yol_haritasi_sil', harita_id=harita.id) }}"
+            onsubmit="return confirm('Bu yol haritası, adımları, ipuçları ve notlarıyla birlikte silinecek. Emin misin?');">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <button type="submit" class="sil">Bu yol haritasını sil</button>
+      </form>
+      {% endif %}
+    </section>
+{% endblock %}
+
+{% block betik %}
+  <script>
+    // İpucu ya da GitHub isteği gönderilince düğmeyi kilitle ve bekleme yazısını göster
+    // (cevap birkaç saniye sürebilir, öğrenci iki kez basmasın)
+    document.querySelectorAll(".bekleyen-form").forEach(function (form) {
+      form.addEventListener("submit", function () {
+        form.querySelector("button").disabled = true;
+        form.querySelector(".bekle").style.display = "block";
+      });
+    });
+
+    // Yazdır düğmesi: window.print() tarayıcının yazdırma penceresini açar
+    var yazdir = document.getElementById("yazdir-dugmesi");
+    yazdir.hidden = false;
+    yazdir.addEventListener("click", function () { window.print(); });
+  </script>
+{% endblock %}

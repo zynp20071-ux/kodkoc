@@ -1,0 +1,27 @@
+{% extends "taban.html" %}
+{# Giriş sayfası (8. hafta) #}
+
+{% block baslik %}Giriş · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart dar">
+      <h1>Tekrar hoş geldin</h1>
+      <p class="aciklama">Kaldığın yerden devam etmek için giriş yap.</p>
+
+      {% if hata %}<p class="hata">{{ hata }}</p>{% endif %}
+
+      <form method="post" action="{{ url_for('giris') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="kullanici_adi">Kullanıcı adı</label>
+        <!-- autocomplete: tarayıcının kayıtlı bilgileri doğru kutuya doldurmasına yardım eder -->
+        <input type="text" id="kullanici_adi" name="kullanici_adi" value="{{ kullanici_adi or '' }}"
+               autocomplete="username" required autofocus>
+
+        <label for="sifre">Şifre</label>
+        <input type="password" id="sifre" name="sifre" autocomplete="current-password" required>
+
+        <button type="submit">Giriş yap</button>
+      </form>
+      <p class="alt-baglanti">Hesabın yok mu? <a href="{{ url_for('kayit') }}">Kayıt ol</a></p>
+    </section>
+{% endblock %}

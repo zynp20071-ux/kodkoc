@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Her sayfa kendi başlığını "baslik" bloğuyla verebilir -->
+  <title>{% block baslik %}KodKoç{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500..700&family=DM+Sans:wght@400..700&family=Caveat:wght@600&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    // Kullanıcı daha önce bir tema seçtiyse, sayfa ÇİZİLMEDEN önce uygula.
+    // (Sayfanın sonunda yapsaydık, koyu tema seçen biri bir anlık açık sayfa görürdü.)
+    // try/catch: Gizli pencere gibi durumlarda localStorage kullanılamayabilir.
+    try {
+      var secilenTema = localStorage.getItem("tema");
+      if (secilenTema === "koyu" || secilenTema === "acik") {
+        document.documentElement.dataset.tema = secilenTema;   // <html data-tema="koyu">
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!--
+    Bu dosya bütün sayfaların ortak iskeletidir (8. hafta).
+    Logo, slogan ve menü burada bir kez yazılır; diğer sayfalar
+    en üstte extends "taban.html" diyerek bunu kullanır ve sadece
+    "icerik" bloğunu doldurur. Böylece aynı kodu üç kez yazmayız.
+  -->
+  <header class="ust">
+    <a class="logo" href="{{ url_for('ana_sayfa') }}">KodKoç</a>
+    <div class="slogan">Kodu yazan değil, yazmayı öğreten koç</div>
+    <!-- Menü sadece giriş yapılmışsa görünür. g.kullanici, app.py'deki
+         kullaniciyi_yukle() fonksiyonunda her istekte doldurulur. -->
+    {% if g.kullanici %}
+    <nav class="menu">
+      <!-- Role göre farklı menü: öğretmene panel, öğrenciye "Sınıfım" bağlantısı -->
+      {% if g.kullanici.rol == 'ogretmen' %}
+      <a href="{{ url_for('ogretmen_paneli') }}">Öğretmen paneli</a>
+      {% endif %}
+      <a href="{{ url_for('ana_sayfa') }}">Yeni yol haritası</a>
+      <a href="{{ url_for('gecmis') }}">Geçmiş{% if g.okunmamis %}
+        <!-- Görülmemiş öğretmen yorumu sayısı -->
+        <span class="menu-rozeti" title="{{ g.okunmamis }} yeni öğretmen yorumu">{{ g.okunmamis }}</span>{% endif %}</a>
+      {% if g.kullanici.rol != 'ogretmen' %}
+      <a href="{{ url_for('sinifim') }}">Sınıfım{% if g.yeni_duyuru %}
+        <!-- Görülmemiş öğretmen duyurusu sayısı -->
+        <span class="menu-rozeti" title="{{ g.yeni_duyuru }} yeni duyuru">{{ g.yeni_duyuru }}</span>{% endif %}</a>
+      {% endif %}
+      <!-- Çıkış bir POST formu: başka bir site, bir bağlantıyla kullanıcıyı habersizce çıkaramasın -->
+      <form method="post" action="{{ url_for('cikis') }}" class="cikis-formu">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <!-- Kullanıcı adına tıklayınca profil sayfası açılır (şifre değiştirme, çalışma serisi) -->
+        <a class="kullanici-adi" href="{{ url_for('profil') }}" title="Profilim">{{ g.kullanici.kullanici_adi }}</a>
+        <button type="submit" class="cikis">Çıkış</button>
+      </form>
+    </nav>
+    {% endif %}
+    <!-- Tema düğmesi. "hidden": JavaScript çalışmıyorsa işe yaramayacağı için gizli başlar.
+         type="button": form göndermez, sadece sayfadaki JavaScript'i çalıştırır. -->
+    <button type="button" id="tema-dugmesi" class="tema-dugmesi" hidden>Koyu tema</button>
+  </header>
+
+  <main class="kapsayici">
+    <!-- flash() ile gönderilen tek seferlik mesajlar (ör. "Notun kaydedildi.") -->
+    {% for tur, mesaj in get_flashed_messages(with_categories=true) %}
+    <p class="{{ 'hata' if tur == 'hata' else 'bilgi' }}">{{ mesaj }}</p>
+    {% endfor %}
+
+    {% block icerik %}{% endblock %}
+  </main>
+
+  <script>
+    // Tema düğmesi: açık <-> koyu arasında geçiş yapar ve seçimi tarayıcıda hatırlar
+    (function () {
+      var dugme = document.getElementById("tema-dugmesi");
+      var kok = document.documentElement;
+
+      // Şu an koyu tema mı görünüyor? Kullanıcı seçtiyse o, seçmediyse bilgisayarın ayarı.
+      function koyuMu() {
+        if (kok.dataset.tema) return kok.dataset.tema === "koyu";
+        return window.matchMedia("(prefers-color-scheme: dark)").matches;
+      }
+      function yaziyiGuncelle() {
+        dugme.textContent = koyuMu() ? "Açık tema" : "Koyu tema";
+      }
+
+      dugme.addEventListener("click", function () {
+        kok.dataset.tema = koyuMu() ? "acik" : "koyu";
+        try { localStorage.setItem("tema", kok.dataset.tema); } catch (e) {}
+        yaziyiGuncelle();
+      });
+
+      yaziyiGuncelle();
+      dugme.hidden = false;           // JavaScript çalışıyor, düğmeyi göster
+    })();
+  </script>
+
+  {% block betik %}{% endblock %}
+</body>
+</html>

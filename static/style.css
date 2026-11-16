@@ -1,0 +1,1136 @@
+/* KodKoç - sunumdaki renk ve yazı tipleriyle aynı tasarım */
+
+/*
+  RENK DEĞİŞKENLERİ (CSS custom properties)
+  Bütün renkler burada bir kez tanımlanır, sayfanın geri kalanı var(--ad) ile kullanır.
+  Böylece koyu tema için sadece bu değerleri değiştirmek yeterli (aşağıya bak).
+  Önemli kural: Bu dosyada renk kodu (#...) SADECE bu tanımlarda geçer.
+  (tests/test_tema.py bunu kontrol eder.)
+*/
+
+/* Açık tema (varsayılan) - sunumdaki krem/turuncu tasarım */
+:root {
+  color-scheme: light;       /* Tarayıcının kendi kutu ve kaydırma çubuklarını da açık yapar */
+  --zemin: #F5EFE4;          /* Sayfa arka planı */
+  --kart: #FBF8F2;           /* Kartlar, kutular */
+  --alan: #FFFDF9;           /* Yazı alanları, ipucu kutuları */
+  --cizgi: #E2D8C6;          /* Kenarlıklar */
+  --koyu: #1E2B37;           /* Ana yazı rengi */
+  --yumusak: #4A5560;        /* Açıklama yazıları */
+  --gri: #5C6570;            /* Tarih gibi ikincil yazılar */
+  --vurgu: #B04A27;          /* Turuncu vurgu: düğmeler, başlıklar */
+  --vurgu-koyu: #93391C;     /* Düğmenin üstüne gelince */
+  --vurgu-acik: #F0DCCF;     /* Açık turuncu zemin */
+  --yesil: #2E6B66;          /* Tamamlandı, ilerleme */
+  --yesil-koyu: #24524E;
+  --yesil-acik: #DCEBE8;
+  --yesil-yazi: #1F4A46;
+  --hata-zemin: #FBE3DB;
+  --hata-yazi: #7A2A12;
+  --kod-zemin: #EFE6D6;
+  --commit-zemin: #F0F6F4;
+  --dugme-yazi: #FBF8F2;     /* Turuncu/yeşil düğmenin üstündeki yazı */
+}
+
+/* Koyu tema. İki durumda devreye girer:
+   1) Kullanıcı üstteki düğmeyle koyu temayı seçtiyse:  <html data-tema="koyu">
+   2) Bir seçim yapmadıysa ve bilgisayarı koyu moddaysa (prefers-color-scheme: dark)
+   Aynı renkler iki yerde yazılı, çünkü CSS'te bir bloğu iki farklı koşula bağlamanın
+   basit bir yolu yok. */
+:root[data-tema="koyu"] {
+  color-scheme: dark;
+  --zemin: #1B1714;
+  --kart: #241F1A;
+  --alan: #1F1A16;
+  --cizgi: #3A3229;
+  --koyu: #EDE6DA;
+  --yumusak: #C9BFB0;
+  --gri: #A39A8C;
+  --vurgu: #E07A4F;
+  --vurgu-koyu: #C9603A;
+  --vurgu-acik: #3D2A20;
+  --yesil: #5BA89F;
+  --yesil-koyu: #4A938B;
+  --yesil-acik: #1F3532;
+  --yesil-yazi: #A8D5CF;
+  --hata-zemin: #3D2420;
+  --hata-yazi: #F2B8A6;
+  --kod-zemin: #2E2720;
+  --commit-zemin: #1E2A28;
+  --dugme-yazi: #1B1714;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="acik"]) {
+    color-scheme: dark;
+    --zemin: #1B1714;
+    --kart: #241F1A;
+    --alan: #1F1A16;
+    --cizgi: #3A3229;
+    --koyu: #EDE6DA;
+    --yumusak: #C9BFB0;
+    --gri: #A39A8C;
+    --vurgu: #E07A4F;
+    --vurgu-koyu: #C9603A;
+    --vurgu-acik: #3D2A20;
+    --yesil: #5BA89F;
+    --yesil-koyu: #4A938B;
+    --yesil-acik: #1F3532;
+    --yesil-yazi: #A8D5CF;
+    --hata-zemin: #3D2420;
+    --hata-yazi: #F2B8A6;
+    --kod-zemin: #2E2720;
+    --commit-zemin: #1E2A28;
+    --dugme-yazi: #1B1714;
+  }
+}
+
+/* Tema değiştirme düğmesi (üst bant) */
+button.tema-dugmesi {
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--yumusak);
+  background: none;
+  border: 1px solid var(--cizgi);
+  border-radius: 999px;
+}
+button.tema-dugmesi:hover { color: var(--vurgu); background: none; border-color: var(--vurgu); }
+.ust > .tema-dugmesi { margin-left: 16px; }
+/* Giriş yapılmamışsa menü yok; düğme sloganın hemen ardından gelir, sağa yaslansın */
+.ust > .slogan + .tema-dugmesi { margin-left: auto; }
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--zemin);
+  color: var(--koyu);
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+/* Üst bant */
+.ust {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 22px 32px;
+  border-bottom: 1px solid var(--cizgi);
+}
+.logo {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--vurgu);
+}
+.slogan {
+  font-family: "Caveat", cursive;
+  font-size: 24px;
+  color: var(--gri);
+}
+
+.kapsayici {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 20px 64px;
+}
+
+/* Form kartı */
+.kart {
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 18px;
+  padding: 32px;
+}
+h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 34px;
+  line-height: 1.15;
+  margin: 0 0 10px;
+}
+.aciklama { color: var(--yumusak); margin: 0 0 24px; }
+
+label {
+  display: block;
+  font-weight: 600;
+  margin: 18px 0 8px;
+}
+.istege-bagli { font-weight: 400; color: var(--gri); }
+
+textarea, input {
+  width: 100%;
+  font: inherit;
+  color: var(--koyu);
+  background: var(--alan);
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+textarea { resize: vertical; }
+textarea:focus, input:focus {
+  outline: 2px solid var(--vurgu);
+  outline-offset: 1px;
+}
+
+button {
+  margin-top: 24px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--dugme-yazi);
+  background: var(--vurgu);
+  border: none;
+  border-radius: 999px;
+  padding: 14px 28px;
+  cursor: pointer;
+}
+button:hover { background: var(--vurgu-koyu); }
+button:disabled { opacity: 0.6; cursor: wait; }
+
+.bekle {
+  display: none;
+  margin: 14px 0 0;
+  color: var(--vurgu);
+  font-weight: 600;
+}
+.hata {
+  background: var(--hata-zemin);
+  border-left: 4px solid var(--vurgu);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--hata-yazi);
+}
+
+/* Sonuç: yol haritası */
+.sonuc { margin-top: 40px; }
+.etiket {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--vurgu);
+  margin: 0 0 12px;
+}
+.giris p { font-size: 18px; color: var(--yumusak); }
+
+.adim {
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-left: 6px solid var(--vurgu);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin: 16px 0;
+}
+.adim h3 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  margin: 0 0 10px;
+}
+.adim ul { margin: 0; padding-left: 20px; }
+.adim li { margin: 6px 0; }
+.adim strong { color: var(--koyu); }
+
+.dikkat {
+  background: var(--vurgu-acik);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin: 28px 0 16px;
+}
+.dikkat h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  color: var(--vurgu);
+  margin: 0 0 8px;
+}
+.dikkat ul { margin: 0 0 12px; padding-left: 20px; }
+.dikkat p:last-child { font-weight: 600; margin-bottom: 0; }
+
+code {
+  background: var(--kod-zemin);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 0.92em;
+}
+
+.kayit { margin-top: 20px; font-size: 14px; color: var(--gri); }
+
+
+/* ------------------------------------------------------------------ */
+/* 8. hafta eklemeleri                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Logo artık ana sayfaya giden bir bağlantı */
+a.logo { text-decoration: none; }
+
+/* Üst banttaki menü (sağa yaslı) */
+.menu {
+  margin-left: auto;
+  display: flex;
+  gap: 20px;
+}
+.menu a {
+  color: var(--koyu);
+  font-weight: 600;
+  text-decoration: none;
+}
+.menu a:hover { color: var(--vurgu); }
+
+/* Yol haritası sayfasının en üstündeki proje anlatımı */
+.proje-ozeti {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  line-height: 1.35;
+  white-space: pre-line;      /* Öğrencinin yazdığı satır sonlarını korur */
+  margin: 0 0 24px;
+}
+
+/* İlerleme çubuğu */
+.ilerleme {
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin: 0 0 24px;
+}
+.ilerleme-yazi {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.ilerleme-cubugu {
+  display: block;
+  height: 12px;
+  background: var(--vurgu-acik);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ilerleme-dolu {
+  display: block;
+  height: 100%;
+  background: var(--yesil);
+  border-radius: 999px;
+  transition: width 0.4s;
+}
+.ilerleme-cubugu.kucuk { height: 8px; margin: 10px 0 6px; }
+.tebrik {
+  margin: 10px 0 0;
+  font-family: "Caveat", cursive;
+  font-size: 26px;
+  color: var(--yesil);
+}
+
+/* Adım başlığı ve "Tamamladım" düğmesi yan yana */
+.adim-ust {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.adim-ust form { flex-shrink: 0; }
+
+button.isaret {
+  margin-top: 0;
+  padding: 8px 16px;
+  font-size: 15px;
+  color: var(--vurgu);
+  background: transparent;
+  border: 2px solid var(--vurgu);
+}
+button.isaret:hover { background: var(--vurgu-acik); }
+button.isaret.bitti {
+  color: var(--dugme-yazi);
+  background: var(--yesil);
+  border-color: var(--yesil);
+}
+button.isaret.bitti:hover { background: var(--yesil-koyu); }
+
+/* Tamamlanan adım: sol çizgi yeşil, içerik biraz soluk */
+.adim.bitti { border-left-color: var(--yesil); }
+.adim.bitti h3 { color: var(--yesil); }
+.adim.bitti > ul { opacity: 0.7; }   /* ">" : sadece adımın kendi maddeleri, ipuçları değil */
+
+/* Geçmiş sayfası */
+.gecmis-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gecmis-ogesi {
+  display: block;
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin: 0 0 14px;
+  color: var(--koyu);
+  text-decoration: none;
+}
+.gecmis-ogesi:hover { border-color: var(--vurgu); }
+.gecmis-tarih {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--vurgu);
+}
+.gecmis-proje {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 19px;
+  margin-top: 4px;
+}
+.gecmis-durum { font-size: 14px; color: var(--gri); }
+
+/* Bağlantıyı düğme gibi gösterir */
+.dugme-link {
+  display: inline-block;
+  font-weight: 700;
+  color: var(--dugme-yazi);
+  background: var(--vurgu);
+  border-radius: 999px;
+  padding: 12px 24px;
+  text-decoration: none;
+}
+.dugme-link:hover { background: var(--vurgu-koyu); }
+
+/* Ekranda görünmeyen ama ekran okuyucuların okuduğu etiketler (erişilebilirlik) */
+.gizli {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Bilgi mesajı (flash): hata kutusunun yeşil kardeşi */
+.bilgi {
+  background: var(--yesil-acik);
+  border-left: 4px solid var(--yesil);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--yesil-yazi);
+  margin: 0 0 20px;
+}
+.kapsayici > .hata { margin: 0 0 20px; }
+
+/* İpucu kutusu: kâğıda iliştirilmiş not gibi */
+.ipucu {
+  background: var(--alan);
+  border: 1px dashed var(--cizgi);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 14px 0 0;
+}
+.ipucu p { margin: 6px 0; }
+.ipucu ul { margin: 6px 0; padding-left: 20px; }
+.ipucu-etiket {
+  font-family: "Caveat", cursive;
+  font-size: 22px;
+  color: var(--vurgu);
+  margin: 0 !important;
+}
+.ipucu-soru { color: var(--gri); font-style: italic; }
+.ipucu-bitti { margin: 0; font-size: 15px; color: var(--gri); }
+
+/* Adımın altındaki "ipucu" ve "not" araçları */
+.adim-araclar {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cizgi);
+}
+.adim-araclar details { margin: 6px 0; }
+.adim-araclar summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--vurgu);
+}
+.adim-araclar summary:hover { text-decoration: underline; }
+.adim-araclar label { margin-top: 10px; font-size: 15px; }
+.adim-araclar textarea { margin-top: 8px; font-size: 16px; }
+.adim-araclar button { margin-top: 10px; padding: 10px 20px; font-size: 15px; }
+
+/* İkincil (çerçeveli) düğme ve silme düğmesi */
+button.ikincil {
+  color: var(--yesil);
+  background: transparent;
+  border: 2px solid var(--yesil);
+}
+button.ikincil:hover { background: var(--yesil-acik); }
+button.sil {
+  margin-top: 28px;
+  padding: 8px 0;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--gri);
+  background: none;
+  text-decoration: underline;
+}
+button.sil:hover { color: var(--vurgu); background: none; }
+
+/* Geçmiş sayfası: özet sayılar */
+.ozet {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0 0 20px;
+}
+.ozet div {
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.ozet strong {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 26px;
+  color: var(--vurgu);
+}
+.ozet span { font-size: 14px; color: var(--gri); }
+
+/* Geçmiş sayfası: arama satırı */
+.arama {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+.arama input { flex: 1; }
+.arama select {
+  font: inherit;
+  color: var(--koyu);
+  background: var(--alan);
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.arama button { margin-top: 0; padding: 10px 22px; }
+
+/* Kullanıcı girişi (8. hafta) */
+.menu { align-items: baseline; }
+.cikis-formu {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 20px;
+  border-left: 1px solid var(--cizgi);
+}
+.kullanici-adi { color: var(--gri); }
+button.cikis {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  color: var(--koyu);
+  background: none;
+  border-radius: 0;
+}
+button.cikis:hover { color: var(--vurgu); background: none; }
+
+.kart.dar { max-width: 480px; margin: 0 auto; }
+.ipucu-yazi { margin: 6px 0 0; font-size: 14px; color: var(--gri); }
+.alt-baglanti { margin: 20px 0 0; color: var(--yumusak); }
+.alt-baglanti a, .kart a:not(.dugme-link) { color: var(--vurgu); font-weight: 600; }
+.buyuk-not {
+  font-family: "Caveat", cursive;
+  font-size: 28px;
+  color: var(--vurgu);
+  margin: 0;
+}
+
+/* Öğretmen paneli ve sınıflar (8. hafta) */
+.ara-baslik {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 24px;
+  margin: 32px 0 14px;
+}
+.geri-baglanti { color: var(--vurgu); text-decoration: none; }
+.geri-baglanti:hover { text-decoration: underline; }
+
+/* Etiket ve kutunun yan yana durduğu tek satırlık formlar */
+.satir-form label { margin-top: 0; }
+.satir { display: flex; gap: 10px; }
+.satir input { flex: 1; }
+.satir button { margin-top: 0; }
+.kod-kutusu { text-transform: uppercase; letter-spacing: 3px; font-weight: 700; }
+
+/* Kayıt sayfasındaki rol seçimi */
+.rol-secimi {
+  border: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+.rol-secimi legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+.secenek {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-weight: 400;
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+  background: var(--alan);
+  cursor: pointer;
+}
+.secenek:has(input:checked) { border-color: var(--vurgu); background: var(--vurgu-acik); }
+.secenek input { width: auto; margin-top: 5px; accent-color: var(--vurgu); }
+.secenek strong { display: block; }
+.secenek span { font-size: 15px; color: var(--yumusak); }
+
+/* Sınıf listeleri */
+.sinif-karti, .sinif-ogesi {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.sinif-ogesi {
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin: 0 0 14px;
+}
+.sinif-ogesi .gecmis-durum, .sinif-karti .gecmis-durum { display: block; margin-top: 4px; }
+.sinif-ogesi button.sil { margin-top: 0; }
+.kod-rozeti {
+  flex-shrink: 0;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--vurgu);
+  background: var(--vurgu-acik);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+
+/* Sınıf sayfasında büyük katılım kodu */
+.kod-kutusu-buyuk {
+  background: var(--kart);
+  border: 2px dashed var(--vurgu);
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin: 8px 0 24px;
+}
+.kod-kutusu-buyuk span { display: block; font-weight: 600; color: var(--yumusak); }
+.kod-kutusu-buyuk strong {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 40px;
+  letter-spacing: 8px;
+  color: var(--vurgu);
+}
+.kod-kutusu-buyuk .ipucu-yazi { font-weight: 400; color: var(--gri); }
+
+.takilanlar { margin-top: 0; }
+.takilanlar a { color: var(--koyu); }
+.takilanlar a:hover { color: var(--vurgu); }
+.takilanlar li { margin: 6px 0; }
+
+/* Öğrenci tablosu */
+.tablo-kutusu { overflow-x: auto; }
+.tablo {
+  width: 100%;
+  border-collapse: collapse;           /* Hücre çizgileri birleşsin */
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px;
+  font-size: 16px;
+}
+.tablo th, .tablo td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--cizgi);
+  white-space: nowrap;
+}
+.tablo th {
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gri);
+}
+.tablo tr:last-child td { border-bottom: none; }
+.tablo a { color: var(--vurgu); font-weight: 600; }
+.ilerleme-hucresi { min-width: 160px; }
+.ilerleme-hucresi .ilerleme-cubugu.kucuk { margin: 4px 0; }
+
+/* Öğretmenin salt okunur yol haritası görünümü */
+.ogretmen-seridi {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--yesil-acik);
+  border-left: 4px solid var(--yesil);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 0 20px;
+  color: var(--yesil-yazi);
+}
+.ogretmen-seridi a { color: var(--yesil); font-weight: 600; }
+.durum-rozeti {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vurgu);
+  border: 2px solid var(--vurgu);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.durum-rozeti.bitti { color: var(--dugme-yazi); background: var(--yesil); border-color: var(--yesil); }
+.ogrenci-notu {
+  background: var(--yesil-acik);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin: 14px 0 0;
+}
+.ogrenci-notu p { margin: 4px 0; white-space: pre-line; }
+
+/* GitHub commit takibi (8. hafta) */
+.github-kutusu {
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px;
+  padding: 14px 20px;
+  margin: 0 0 24px;
+}
+.github-kutusu summary { cursor: pointer; font-weight: 600; color: var(--vurgu); }
+.github-kutusu summary:hover { text-decoration: underline; }
+.github-kutusu .satir-form { margin-top: 10px; }
+.github-ust {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.depo-adi { font-weight: 700; color: var(--koyu); }
+.depo-adi:hover { color: var(--vurgu); }
+.github-dugmeler { display: flex; align-items: center; gap: 14px; }
+.github-dugmeler button.sil { margin-top: 0; }
+.github-dugmeler .bekle { font-size: 14px; margin-top: 6px; }
+
+.commit-listesi, .adim-commitleri ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.commit-listesi li, .adim-commitleri li {
+  padding: 6px 0 6px 18px;
+  border-top: 1px solid var(--cizgi);
+  position: relative;
+}
+/* Her commit'in başında küçük bir nokta (commit grafiğini andırır) */
+.commit-listesi li::before, .adim-commitleri li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--yesil);
+}
+.commit-listesi a, .adim-commitleri a { color: var(--koyu); }
+.commit-listesi a:hover, .adim-commitleri a:hover { color: var(--vurgu); }
+.commit-listesi .gecmis-durum, .adim-commitleri .gecmis-durum { font-size: 13px; }
+
+.adim-commitleri {
+  background: var(--commit-zemin);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin: 14px 0 0;
+}
+.adim-commitleri .ipucu-etiket { color: var(--yesil); }
+.adim-commitleri li:first-child { border-top: none; }
+.adim-commitleri .ipucu-yazi { margin-top: 6px; }
+
+/* Öğretmen yorumları (8. hafta) */
+.ogretmen-yorumu {
+  background: var(--vurgu-acik);
+  border-left: 4px solid var(--vurgu);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin: 14px 0 0;
+}
+.ogretmen-yorumu p { margin: 4px 0; white-space: pre-line; }
+.yorum-alt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.yorum-alt button.sil { margin-top: 0; padding: 0; font-size: 14px; }
+.yorum-rozeti {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vurgu);
+  background: var(--vurgu-acik);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+/* Yeni yorum bildirimi ve CSV indirme (8. hafta) */
+.menu-rozeti {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--dugme-yazi);
+  background: var(--vurgu);
+  border-radius: 999px;
+  vertical-align: 2px;
+}
+.ogretmen-yorumu.yeni { box-shadow: 0 0 0 2px var(--vurgu); }
+.yeni-etiketi {
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dugme-yazi);
+  background: var(--vurgu);
+  border-radius: 6px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: 3px;
+}
+.yorum-rozeti.yeni { color: var(--dugme-yazi); background: var(--vurgu); }
+
+.baslik-satiri {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.indir-baglantisi {
+  font-weight: 600;
+  color: var(--yesil);
+  border: 2px solid var(--yesil);
+  border-radius: 999px;
+  padding: 6px 16px;
+  text-decoration: none;
+}
+.indir-baglantisi:hover { background: var(--yesil-acik); }
+
+/* Kodumu incelet (8. hafta) */
+.kod-incelemesi {
+  background: var(--alan);
+  border: 1px solid var(--cizgi);
+  border-left: 4px solid var(--koyu);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin: 14px 0 0;
+}
+.kod-incelemesi p { margin: 6px 0; }
+.kod-incelemesi ul { margin: 6px 0; padding-left: 20px; }
+.kod-incelemesi .ipucu-etiket { color: var(--koyu); }
+.kod-incelemesi summary { cursor: pointer; font-size: 14px; color: var(--gri); margin-top: 6px; }
+
+/* Kod yazılan / gösterilen alanlar: eş genişlikli yazı tipi, satırlar kaymasın */
+.kod-alani, .gonderilen-kod {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  tab-size: 4;
+}
+.kod-alani { white-space: pre; overflow-x: auto; }
+.gonderilen-kod {
+  background: var(--kod-zemin);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 0;
+  overflow-x: auto;              /* Uzun satırlar sayfayı taşırmasın, kutu içinde kaysın */
+}
+.gonderilen-kod code { background: none; padding: 0; font-size: inherit; }
+
+/* Ana sayfa: kaldığın yerden devam et + proje fikri (8. hafta) */
+.devam-karti {
+  display: block;
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-left: 6px solid var(--yesil);
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin: 0 0 24px;
+  color: var(--koyu);
+  text-decoration: none;
+}
+.devam-karti:hover { border-color: var(--yesil); }
+.devam-karti .etiket { display: block; color: var(--yesil); margin-bottom: 4px; }
+.devam-proje {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 20px;
+}
+.devam-adim { display: block; margin-top: 4px; color: var(--yumusak); }
+
+.fikir-kutusu {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--cizgi);
+}
+.fikir-kutusu summary { cursor: pointer; font-weight: 600; color: var(--vurgu); }
+.fikir-kutusu summary:hover { text-decoration: underline; }
+.fikir-listesi { list-style: none; margin: 20px 0 0; padding: 0; }
+.fikir-listesi li {
+  background: var(--alan);
+  border: 1px dashed var(--cizgi);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 0 0 12px;
+}
+.fikir-listesi strong { font-family: "Fraunces", Georgia, serif; font-size: 18px; }
+.fikir-listesi p { margin: 4px 0 0; color: var(--yumusak); }
+.fikir-listesi button { margin-top: 10px; }
+
+/* Adımları düzenleme (8. hafta) */
+.kendi-etiketi {
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--yesil);
+  border: 1px solid var(--yesil);
+  border-radius: 6px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: 4px;
+  white-space: nowrap;
+}
+.adim-ekle-kutusu {
+  border: 2px dashed var(--cizgi);
+  border-radius: 14px;
+  padding: 14px 20px;
+  margin: 16px 0;
+}
+.adim-ekle-kutusu summary { cursor: pointer; font-weight: 700; color: var(--vurgu); }
+.adim-ekle-kutusu button { margin-top: 12px; padding: 10px 20px; font-size: 15px; }
+
+/* Rozetler (8. hafta) */
+.rozet-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));   /* Ekrana sığdığı kadar sütun */
+  gap: 12px;
+}
+.rozet {
+  background: var(--kart);
+  border: 1px dashed var(--cizgi);
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: var(--gri);
+}
+.rozet.kazanildi {
+  border: 2px solid var(--vurgu);
+  background: var(--vurgu-acik);
+  color: var(--koyu);
+}
+.rozet-isareti { display: block; font-size: 24px; line-height: 1; color: var(--cizgi); }
+.rozet.kazanildi .rozet-isareti { color: var(--vurgu); }
+.rozet-adi {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+.rozet-aciklama { display: block; font-size: 14px; margin-top: 2px; }
+.rozet-ilerleme { display: block; font-size: 13px; font-weight: 700; margin-top: 6px; }
+
+/* Koça soru sor (8. hafta): sohbet balonları */
+.soru-konusmasi { margin: 14px 0 0; }
+.balon {
+  border-radius: 14px;
+  padding: 10px 16px;
+  margin: 8px 0 0;
+  max-width: 90%;
+}
+.balon p { margin: 4px 0; }
+.balon ul { margin: 4px 0; padding-left: 20px; }
+.balon-kim { display: block; font-size: 13px; font-weight: 700; color: var(--gri); }
+/* Öğrencinin sorusu sağda, koçun cevabı solda (mesajlaşma uygulamaları gibi) */
+.ogrenci-balonu {
+  margin-left: auto;
+  background: var(--vurgu-acik);
+  border-bottom-right-radius: 4px;
+}
+.koc-balonu {
+  background: var(--alan);
+  border: 1px solid var(--cizgi);
+  border-left: 4px solid var(--yesil);
+  border-bottom-left-radius: 4px;
+}
+
+/* Profil sayfası (8. hafta) */
+.menu a.kullanici-adi { color: var(--gri); font-weight: 400; }
+.menu a.kullanici-adi:hover { color: var(--vurgu); text-decoration: underline; }
+.profil-bolumu { margin-top: 20px; }
+.profil-bolumu .ara-baslik { margin-top: 0; }
+.seri-mesaji {
+  font-family: "Caveat", cursive;
+  font-size: 26px;
+  color: var(--vurgu);
+  margin: 0 0 4px;
+}
+/* Takvim: 7 sütunlu ızgara, her kare bir gün */
+.takvim { max-width: 380px; }
+.takvim-satiri {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.takvim-gun-adi { font-size: 12px; color: var(--gri); text-align: center; }
+.takvim-kare {
+  aspect-ratio: 1;                /* Genişliği kadar yüksek: tam kare */
+  border-radius: 6px;
+  background: var(--alan);
+  border: 1px solid var(--cizgi);
+}
+/* Ne kadar çok etkinlik, o kadar koyu yeşil */
+.takvim-kare.seviye-1 { background: var(--yesil-acik); border-color: var(--yesil); }
+.takvim-kare.seviye-2 { background: var(--yesil); opacity: 0.6; border-color: var(--yesil); }
+.takvim-kare.seviye-3 { background: var(--yesil-koyu); border-color: var(--yesil-koyu); }
+.takvim-kare.gelecek { background: transparent; border-style: dashed; }
+
+@media (max-width: 600px) {
+  .satir { flex-wrap: wrap; }
+  .satir input { flex-basis: 100%; }
+  .kod-kutusu-buyuk strong { font-size: 32px; }
+  .cikis-formu { margin-left: auto; padding-left: 0; border-left: none; }
+  .kart { padding: 22px; }
+  h1 { font-size: 28px; }
+  .ust { padding: 18px 16px; }
+  .menu { margin-left: 0; width: 100%; }
+  .adim-ust { flex-direction: column; gap: 4px; }
+  .adim { padding: 18px; }
+  .ozet { grid-template-columns: 1fr; }
+  .arama { flex-wrap: wrap; }
+  .arama input { flex-basis: 100%; }
+}
+
+/* Sınıf duyuruları (8. hafta) */
+.duyuru-karti {
+  display: block;
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-left: 6px solid var(--vurgu);
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin: 0 0 24px;
+}
+.duyuru-karti .etiket { display: block; margin-bottom: 4px; }
+.duyuru-karti a { color: var(--vurgu); font-weight: 600; }
+.duyuru-listesi { margin: 16px 0 0; }
+.duyuru {
+  border-bottom: 1px dashed var(--cizgi);
+  padding: 10px 0;
+}
+.duyuru:last-child { border-bottom: none; }
+.duyuru.yeni { border-left: 4px solid var(--vurgu); padding-left: 12px; }
+.duyuru-metni { margin: 0 0 4px; white-space: pre-line; }   /* Öğretmenin satır sonları korunur */
+.duyuru-listesi button.sil { margin-top: 0; }
+
+/* Sınıf istatistikleri grafikleri (8. hafta) — kütüphanesiz, sadece CSS */
+.grafikler {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));   /* Genişse yan yana, darsa alt alta */
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.grafik h3 { margin: 0 0 4px; font-size: 17px; }
+.grafik-etiketi { font-size: 13px; color: var(--gri); }
+.grafik-deger { font-size: 13px; font-weight: 600; color: var(--koyu); font-variant-numeric: tabular-nums; }
+
+/* Yatay çubuklar: etiket | çubuk | sayı */
+.yatay-grafik { display: grid; gap: 8px; margin: 12px 0; }
+.yatay-satir {
+  display: grid;
+  grid-template-columns: 64px 1fr 28px;
+  align-items: center;
+  gap: 10px;
+}
+.yatay-satir .grafik-deger { text-align: right; }
+.yatay-yol { height: 14px; }                           /* Boş kısım çizilmez: sade görünüm */
+.yatay-cubuk {
+  display: block;
+  height: 100%;
+  min-width: 2px;                                       /* 0 bile olsa ince bir çizgi kalsın */
+  background: var(--yesil);
+  border-radius: 0 4px 4px 0;                           /* Sadece uç yuvarlak, başlangıç düz */
+}
+
+/* Dikey sütunlar: 14 gün yan yana */
+.sutun-grafik {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 2px;
+  align-items: end;
+  margin: 12px 0 0;
+}
+.sutun { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.sutun .grafik-deger { min-height: 16px; }
+.sutun .grafik-etiketi { font-size: 11px; }           /* 14 gün telefona da sığsın */
+.sutun-yol {
+  display: flex;
+  align-items: flex-end;                                /* Çubuk aşağıdan yukarı büyüsün */
+  width: 100%;
+  height: 110px;
+  border-bottom: 1px solid var(--cizgi);                /* Taban çizgisi */
+}
+.sutun-cubuk {
+  display: block;
+  width: 100%;
+  max-width: 18px;
+  margin: 0 auto;
+  background: var(--yesil);
+  border-radius: 4px 4px 0 0;
+}
+.sutun.bugun .grafik-etiketi { color: var(--koyu); font-weight: 600; }
+.sutun:hover .sutun-cubuk, .yatay-satir:hover .yatay-cubuk { background: var(--yesil-koyu); }
+
+/* Yazdırma / PDF (8. hafta) */
+.yazdir-notu { display: none; }        /* Ekranda gizli, sadece kâğıtta görünür */
+@media print {
+  /* Koyu tema seçili olsa bile kâğıda açık renklerle bas (mürekkep ve okunabilirlik).
+     Bu seçiciler dosyanın sonunda olduğu için yukarıdaki koyu tema tanımlarını ezer. */
+  :root, :root[data-tema="koyu"], :root:not([data-tema="acik"]) {
+    color-scheme: light;
+    --zemin: #FFFFFF;
+    --kart: #FFFFFF;
+    --alan: #FFFFFF;
+    --cizgi: #BBBBBB;
+    --koyu: #000000;
+    --yumusak: #333333;
+    --gri: #555555;
+    --vurgu: #B04A27;
+    --vurgu-koyu: #93391C;
+    --vurgu-acik: #F0DCCF;
+    --yesil: #2E6B66;
+    --yesil-koyu: #24524E;
+    --yesil-acik: #DCEBE8;
+    --yesil-yazi: #1F4A46;
+    --hata-zemin: #FBE3DB;
+    --hata-yazi: #7A2A12;
+    --kod-zemin: #F2F2F2;
+    --commit-zemin: #FFFFFF;
+    --dugme-yazi: #FFFFFF;
+  }
+  /* Kâğıtta işe yaramayan her şeyi gizle: menü, düğmeler, formlar, açılır kutular */
+  .menu, .tema-dugmesi, .adim-araclar, .adim-ekle-kutusu, .github-dugmeler,
+  .github-kutusu details, form, button, .kayit, .kapsayici > .bilgi, .kapsayici > .hata { display: none !important; }
+  .yazdir-notu { display: block; }
+  .adim { break-inside: avoid; }       /* Bir adım iki sayfaya bölünmesin */
+  .adim.bitti h3::after { content: "  ✓ tamamlandı"; font-size: 14px; color: var(--yesil); }
+  a { color: inherit; text-decoration: none; }
+  .kapsayici { max-width: none; padding: 0; }
+}

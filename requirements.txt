@@ -1,0 +1,9 @@
+google-genai
+python-dotenv
+flask
+markdown
+# Canli sunucuda Flask'i calistiran program (Windows'ta calismaz, gerek de yok)
+gunicorn; sys_platform != "win32"
+# PostgreSQL baglantisi (sadece DATABASE_URL ayarliysa kullanilir)
+psycopg[binary]
+psycopg-pool

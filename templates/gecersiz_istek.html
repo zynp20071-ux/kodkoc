@@ -1,0 +1,13 @@
+{% extends "taban.html" %}
+{# 400 sayfası: form güvenlik jetonu (CSRF) tutmadığında gösterilir (8. hafta) #}
+
+{% block baslik %}İstek reddedildi · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart dar">
+      <p class="buyuk-not">Bir şeyler ters gitti.</p>
+      <h1>Form gönderilemedi</h1>
+      <p class="aciklama">Güvenlik için bu isteği reddettik. Sayfa çok uzun süre açık kalmış ya da bu arada çıkış yapmış olabilirsin. Sayfayı yenileyip tekrar dene.</p>
+      <a class="dugme-link" href="{{ url_for('ana_sayfa') }}">Ana sayfaya dön</a>
+    </section>
+{% endblock %}

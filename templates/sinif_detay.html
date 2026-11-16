@@ -1,0 +1,174 @@
+{% extends "taban.html" %}
+{# Öğretmen: bir sınıfın ilerleme tablosu ve takılan öğrenciler (8. hafta) #}
+
+{% block baslik %}{{ sinif.ad }} · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('ogretmen_paneli') }}" class="geri-baglanti">← Öğretmen paneli</a></p>
+    <h1>{{ sinif.ad }}</h1>
+
+    <!-- Katılım kodu büyük ve net görünsün: öğretmen tahtaya yazabilsin -->
+    <div class="kod-kutusu-buyuk">
+      <span>Katılım kodu</span>
+      <strong>{{ sinif.katilim_kodu }}</strong>
+      <span class="ipucu-yazi">Öğrenciler "Sınıfım" sayfasına bu kodu yazarak katılır.</span>
+    </div>
+
+    {% if takilanlar %}
+    <!-- En önemli bilgi en üstte: kime yardım etmeli? -->
+    <section class="dikkat takilanlar">
+      <h2>Yardıma ihtiyacı olabilir</h2>
+      <p>Bu adımlar henüz bitmemiş ve öğrenci en az 2 ipucu almış:</p>
+      <ul>
+        {% for t in takilanlar %}
+        <li>
+          <a href="{{ url_for('ogrenci_yol_haritasi', ogrenci_id=t.ogrenci_id, harita_id=t.harita_id) }}#adim-{{ t.adim_id }}">
+            <strong>{{ t.kullanici_adi }}</strong> · {{ t.baslik | adim_basligi(t.sira) }}
+          </a>
+          <span class="gecmis-durum">({{ t.ipucu_sayisi }} ipucu, son: {{ t.son_ipucu | tarih }})</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if ogrenciler %}
+    <!-- Sınıf istatistikleri: sayılar + iki küçük grafik. Grafikler hazır kütüphane
+         kullanmadan, sadece HTML + CSS ile çiziliyor: çubuğun boyu = style="width/height: %" -->
+    <h2 class="ara-baslik" id="istatistik">Sınıf istatistikleri</h2>
+    <div class="ozet">
+      <div><strong>%{{ istatistik.ortalama }}</strong><span>ortalama ilerleme</span></div>
+      <div><strong>{{ istatistik.aktif_hafta }} / {{ ogrenciler | length }}</strong><span>son 7 günde çalışan</span></div>
+      <div><strong>{{ istatistik.baslamayan }}</strong><span>henüz başlamayan</span></div>
+    </div>
+
+    <div class="grafikler">
+      <section class="kart grafik">
+        <h3>İlerleme dağılımı</h3>
+        <p class="ipucu-yazi">Kaç öğrenci yol haritasının ne kadarını bitirdi?</p>
+        <!-- Yatay çubuklar: her satır bir yüzde aralığı -->
+        <div class="yatay-grafik" aria-hidden="true">
+          {% for grup in istatistik.dagilim %}
+          <div class="yatay-satir" title="{{ grup.etiket }}: {{ grup.sayi }} öğrenci">
+            <span class="grafik-etiketi">{{ grup.etiket }}</span>
+            <span class="yatay-yol"><span class="yatay-cubuk" style="width: {{ grup.oran }}%"></span></span>
+            <span class="grafik-deger">{{ grup.sayi }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if istatistik.baslamayan %}
+        <p class="ipucu-yazi">{{ istatistik.baslamayan }} öğrencinin henüz yol haritası yok; bu grafikte sayılmadı.</p>
+        {% endif %}
+      </section>
+
+      <section class="kart grafik">
+        <h3>Son {{ istatistik.gunler | length }} gün</h3>
+        <p class="ipucu-yazi">Her gün kaç farklı öğrenci çalıştı? (adım, ipucu, soru, inceleme)</p>
+        <!-- Dikey sütunlar: soldaki en eski gün, sağdaki bugün -->
+        <div class="sutun-grafik" aria-hidden="true">
+          {% for g in istatistik.gunler %}
+          <div class="sutun{% if g.bugun %} bugun{% endif %}" title="{{ g.tarih }} {{ g.etiket }}: {{ g.sayi }} öğrenci">
+            <span class="grafik-deger">{{ g.sayi if g.sayi else '' }}</span>
+            <span class="sutun-yol"><span class="sutun-cubuk" style="height: {{ g.oran }}%"></span></span>
+            <span class="grafik-etiketi">{{ g.etiket }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+
+    <!-- Ekran okuyucular için aynı veriler tablo halinde (görünmez ama okunur) -->
+    <table class="gizli">
+      <caption>Sınıf istatistikleri tablosu</caption>
+      <tr><th>İlerleme aralığı</th><th>Öğrenci</th></tr>
+      {% for grup in istatistik.dagilim %}<tr><td>{{ grup.etiket }}</td><td>{{ grup.sayi }}</td></tr>{% endfor %}
+      <tr><th>Gün</th><th>Çalışan öğrenci</th></tr>
+      {% for g in istatistik.gunler %}<tr><td>{{ g.tarih }}</td><td>{{ g.sayi }}</td></tr>{% endfor %}
+    </table>
+    {% endif %}
+
+    <div class="baslik-satiri">
+      <h2 class="ara-baslik">Öğrenciler ({{ ogrenciler | length }})</h2>
+      {% if ogrenciler %}
+      <!-- CSV indirme: normal bir bağlantı (GET), çünkü hiçbir şeyi değiştirmiyor -->
+      <a class="indir-baglantisi" href="{{ url_for('sinif_indir', sinif_id=sinif.id) }}">Excel'e aktar (CSV)</a>
+      {% endif %}
+    </div>
+    {% if ogrenciler %}
+    <!-- Tablo dar ekranda yatay kaydırılabilsin diye bir kutunun içinde -->
+    <div class="tablo-kutusu">
+      <table class="tablo">
+        <thead>
+          <tr>
+            <th>Öğrenci</th>
+            <th>Yol haritası</th>
+            <th>İlerleme</th>
+            <th>İpucu</th>
+            <th title="GitHub'dan çekilen commit sayısı">Commit</th>
+            <th>Son etkinlik</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in ogrenciler %}
+          <tr>
+            <td><a href="{{ url_for('ogrenci_detay', ogrenci_id=o.id, sinif=sinif.id) }}">{{ o.kullanici_adi }}</a></td>
+            <td>{{ o.harita_sayisi }}</td>
+            <td class="ilerleme-hucresi">
+              {% if o.toplam > 0 %}
+              <span class="ilerleme-cubugu kucuk"><span class="ilerleme-dolu" style="width: {{ o.yuzde }}%"></span></span>
+              <span class="gecmis-durum">{{ o.biten }} / {{ o.toplam }} · %{{ o.yuzde }}</span>
+              {% else %}
+              <span class="gecmis-durum">Henüz başlamadı</span>
+              {% endif %}
+            </td>
+            <td>{{ o.ipucu_sayisi }}</td>
+            <td>{{ o.commit_sayisi }}</td>
+            <td>{{ o.son_etkinlik | tarih if o.son_etkinlik else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <section class="kart">
+      <p class="aciklama">Bu sınıfa henüz kimse katılmadı. Yukarıdaki kodu öğrencilerinle paylaş.</p>
+    </section>
+    {% endif %}
+
+    <!-- Duyurular: öğretmen bütün sınıfa tek seferde mesaj bırakır -->
+    <h2 class="ara-baslik" id="duyurular">Duyurular</h2>
+    <section class="kart">
+      <form method="post" action="{{ url_for('duyuru_yaz', sinif_id=sinif.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="duyuru-metni" class="gizli">Duyuru</label>
+        <textarea id="duyuru-metni" name="metin" rows="3" maxlength="{{ en_uzun_duyuru }}" required
+                  placeholder="Örnek: Cuma gününe kadar 3. adımı bitirip commit atmayı unutmayın!"></textarea>
+        <button type="submit" class="ikincil">Duyuruyu gönder</button>
+      </form>
+      {% if duyurular %}
+      <div class="duyuru-listesi">
+        {% for d in duyurular %}
+        <div class="duyuru">
+          <p class="duyuru-metni">{{ d.metin }}</p>
+          <div class="yorum-alt">
+            <span class="gecmis-durum">{{ d.olusturma_zamani | tarih }}</span>
+            <form method="post" action="{{ url_for('duyuru_sil', duyuru_id=d.id) }}"
+                  onsubmit="return confirm('Bu duyuru silinsin mi?');">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="sil">Sil</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="ipucu-yazi">Henüz duyuru yazmadın. Yazdığın duyuru, sınıftaki öğrencilerin ana sayfasında görünür.</p>
+      {% endif %}
+    </section>
+
+    <form method="post" action="{{ url_for('sinif_sil', sinif_id=sinif.id) }}"
+          onsubmit="return confirm('Sınıf kapatılacak. Öğrencilerin yol haritaları SİLİNMEZ ama artık onları göremezsin. Emin misin?');">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <button type="submit" class="sil">Bu sınıfı sil</button>
+    </form>
+{% endblock %}

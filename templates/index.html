@@ -1,0 +1,130 @@
+{% extends "taban.html" %}
+{# Ana sayfa: API anahtarı formu ya da proje formu. Ortak kısımlar taban.html'de. #}
+
+{% block icerik %}
+
+    {% if not anahtar_var and canli %}
+    <!-- Canlı sitede anahtar siteden girilemez; sunucu ayarında olmalı -->
+    <section class="kart">
+      <h1>Hoş geldin!</h1>
+      <p class="aciklama">KodKoç'un yapay zekâ bağlantısı henüz ayarlanmamış. Lütfen öğretmenine haber ver.</p>
+    </section>
+
+    {% elif not anahtar_var %}
+    <!-- İlk kurulum (yerel): API anahtarı henüz yoksa bu kutu görünür -->
+    <section class="kart">
+      <h1>Hoş geldin!</h1>
+      <p class="aciklama">Başlamadan önce Google AI Studio'dan aldığın Gemini API anahtarını gir. Bir kere girmen yeterli, bilgisayarında saklanacak.</p>
+      <form method="post" action="{{ url_for('anahtar_kaydet') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="anahtar">API anahtarı</label>
+        <input type="password" id="anahtar" name="anahtar" placeholder="AIza..." required>
+        <button type="submit">Kaydet ve başla</button>
+      </form>
+    </section>
+
+    {% else %}
+    {% if yeni_duyurular %}
+    <!-- Öğretmenden gelen yeni duyurular. "Sınıfım" sayfası açılınca okundu sayılır. -->
+    <section class="duyuru-karti">
+      <span class="etiket">Öğretmeninden yeni duyuru</span>
+      {% for d in yeni_duyurular %}
+      <div class="duyuru">
+        <p class="duyuru-metni">{{ d.metin }}</p>
+        <span class="gecmis-durum">{{ d.ogretmen_adi }} · {{ d.sinif_adi }} · {{ d.olusturma_zamani | tarih }}</span>
+      </div>
+      {% endfor %}
+      <a href="{{ url_for('sinifim') }}#duyurular">Bütün duyurular →</a>
+    </section>
+    {% endif %}
+
+    {% if devam %}
+    <!-- "Kaldığın yerden devam et": bitmemiş en son yol haritasının sıradaki adımı -->
+    <a class="devam-karti" href="{{ url_for('yol_haritasi_goster', harita_id=devam.harita_id) }}#adim-{{ devam.adim_id }}">
+      <span class="etiket">Kaldığın yerden devam et</span>
+      <span class="devam-proje">{{ devam.proje | truncate(90) }}</span>
+      <span class="devam-adim">Sıradaki: <strong>{{ devam.baslik | adim_basligi(devam.sira) }}</strong></span>
+      <span class="ilerleme-cubugu kucuk"><span class="ilerleme-dolu" style="width: {{ devam_yuzde }}%"></span></span>
+      <span class="gecmis-durum">{{ devam.biten }} / {{ devam.toplam }} adım · %{{ devam_yuzde }} · Devam et →</span>
+    </a>
+    {% endif %}
+
+    <!-- Ana form: öğrenci projesini burada anlatır -->
+    <section class="kart">
+      <h1>Ne yapmak istiyorsun?</h1>
+      <p class="aciklama">Projeni kendi cümlelerinle anlat. KodKoç sana hazır kod vermez; adım adım ne yapacağını ve ne öğrenmen gerektiğini gösterir.</p>
+
+      {% if hata %}<p class="hata">{{ hata }}</p>{% endif %}
+
+      <form method="post" action="{{ url_for('yol_haritasi') }}" id="form">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="proje">Projen</label>
+        <textarea id="proje" name="proje" rows="5" placeholder="Örnek: Python ile basit bir yapılacaklar listesi uygulaması yapmak istiyorum. Görev ekleyip silebileyim.">{{ proje or '' }}</textarea>
+
+        <label for="bilgi">Hangi dilleri / teknolojileri biliyorsun? <span class="istege-bagli">(isteğe bağlı)</span></label>
+        <input type="text" id="bilgi" name="bilgi" placeholder="Örnek: Python temel seviye" value="{{ bilgi or '' }}">
+
+        <button type="submit" id="gonder">Yol haritamı çıkar</button>
+        <p class="bekle" id="bekle">KodKoç düşünüyor, bu birkaç saniye sürebilir…</p>
+      </form>
+
+      <!-- Proje fikri: "Ne yapacağımı bilmiyorum" diyen öğrenci için -->
+      <details class="fikir-kutusu" {% if fikirler or fikir_hatasi %}open{% endif %}>
+        <summary>Ne yapacağını bilmiyor musun? Proje fikri al</summary>
+        <form method="post" action="{{ url_for('proje_fikri') }}" class="bekleyen-form">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label for="ilgi">Nelerle ilgileniyorsun?</label>
+          <input type="text" id="ilgi" name="ilgi" maxlength="200" value="{{ ilgi or '' }}"
+                 placeholder="Örnek: futbol, müzik, oyunlar, yemek tarifleri">
+          <label for="fikir-bilgi">Neleri biliyorsun? <span class="istege-bagli">(isteğe bağlı)</span></label>
+          <input type="text" id="fikir-bilgi" name="bilgi" maxlength="200" value="{{ bilgi or '' }}"
+                 placeholder="Örnek: Python'da döngüleri ve listeleri biliyorum">
+          <button type="submit" class="ikincil">Bana 3 fikir öner</button>
+          <p class="bekle">KodKoç fikir düşünüyor…</p>
+        </form>
+
+        {% if fikir_hatasi %}<p class="hata">{{ fikir_hatasi }}</p>{% endif %}
+
+        {% if fikirler %}
+        <ul class="fikir-listesi">
+          {% for f in fikirler %}
+          <li>
+            <strong>{{ f.baslik }}</strong>
+            <p>{{ f.aciklama }}</p>
+            <!-- GET formu: seçilen fikir adrese eklenir (/?proje=...), ana sayfa formu onunla doldurur.
+                 Hiçbir şeyi değiştirmediği için POST ve CSRF jetonu gerekmez. -->
+            <form method="get" action="{{ url_for('ana_sayfa') }}">
+              <input type="hidden" name="proje" value="{{ f.baslik }}: {{ f.aciklama }}">
+              <input type="hidden" name="bilgi" value="{{ bilgi or '' }}">
+              <button type="submit" class="isaret">Bu fikri seç</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </details>
+    </section>
+    <!-- 8. hafta: Sonuç artık bu sayfada değil, yol_haritasi.html sayfasında gösteriliyor -->
+    {% endif %}
+
+{% endblock %}
+
+{% block betik %}
+  <script>
+    // Form gönderilince düğmeyi kilitle ve "düşünüyor" yazısını göster
+    const form = document.getElementById("form");
+    if (form) {
+      form.addEventListener("submit", function () {
+        document.getElementById("gonder").disabled = true;
+        document.getElementById("bekle").style.display = "block";
+      });
+    }
+    // Proje fikri formu için de aynısı
+    document.querySelectorAll(".bekleyen-form").forEach(function (f) {
+      f.addEventListener("submit", function () {
+        f.querySelector("button").disabled = true;
+        f.querySelector(".bekle").style.display = "block";
+      });
+    });
+  </script>
+{% endblock %}

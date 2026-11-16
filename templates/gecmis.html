@@ -1,0 +1,68 @@
+{% extends "taban.html" %}
+{# Geçmiş sayfası: veritabanındaki yol haritalarının listesi, arama ve filtre (8. hafta) #}
+
+{% block baslik %}Geçmiş · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Geçmiş yol haritaların</h1>
+    <p class="aciklama">Daha önce çıkardığın yol haritaları burada. Birine tıklayıp kaldığın yerden devam edebilirsin.</p>
+
+    {% if ozet.harita_sayisi > 0 %}
+    <!-- Özet sayılar (veritabani.istatistikler fonksiyonundan) -->
+    <div class="ozet">
+      <div><strong>{{ ozet.harita_sayisi }}</strong><span>yol haritası</span></div>
+      <div><strong>{{ ozet.biten_adim }} / {{ ozet.toplam_adim }}</strong><span>adım tamamlandı</span></div>
+      <div><strong>{{ ozet.ipucu_sayisi }}</strong><span>ipucu alındı</span></div>
+    </div>
+
+    <!-- Arama formu: method="get" olduğu için değerler adrese eklenir (/gecmis?ara=...&durum=...) -->
+    <form method="get" action="{{ url_for('gecmis') }}" class="arama">
+      <label for="ara" class="gizli">Ara</label>
+      <input type="search" id="ara" name="ara" placeholder="Projelerde ara…" value="{{ ara }}">
+      <label for="durum" class="gizli">Durum</label>
+      <select id="durum" name="durum">
+        <option value="hepsi" {% if durum == 'hepsi' %}selected{% endif %}>Hepsi</option>
+        <option value="devam" {% if durum == 'devam' %}selected{% endif %}>Devam edenler</option>
+        <option value="bitti" {% if durum == 'bitti' %}selected{% endif %}>Bitenler</option>
+      </select>
+      <button type="submit">Ara</button>
+    </form>
+    {% endif %}
+
+    {% if haritalar %}
+    <ul class="gecmis-listesi">
+      {% for harita in haritalar %}
+      <li>
+        <a class="gecmis-ogesi" href="{{ url_for('yol_haritasi_goster', harita_id=harita.id) }}">
+          <span class="gecmis-tarih">{{ harita.olusturma_zamani | tarih }}</span>
+          <!-- truncate: uzun proje anlatımlarını 140 harfte keser -->
+          <span class="gecmis-proje">{{ harita.proje | truncate(140) }}</span>
+          {% if harita.toplam > 0 %}
+          <span class="ilerleme-cubugu kucuk">
+            <span class="ilerleme-dolu" style="width: {{ harita.yuzde }}%"></span>
+          </span>
+          <span class="gecmis-durum">{{ harita.tamamlanan }} / {{ harita.toplam }} adım · %{{ harita.yuzde }}</span>
+          {% endif %}
+          {% if harita.yeni_yorum_sayisi %}
+          <span class="yorum-rozeti yeni">{{ harita.yeni_yorum_sayisi }} yeni öğretmen yorumu</span>
+          {% elif harita.yorum_sayisi %}
+          <span class="yorum-rozeti">{{ harita.yorum_sayisi }} öğretmen yorumu</span>
+          {% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif ozet.harita_sayisi > 0 %}
+    <section class="kart">
+      <p class="aciklama">Aramana uyan bir yol haritası bulunamadı.</p>
+      <a class="dugme-link" href="{{ url_for('gecmis') }}">Filtreyi temizle</a>
+    </section>
+    {% else %}
+    <section class="kart">
+      <p class="aciklama">Henüz kayıtlı bir yol haritan yok.</p>
+      <a class="dugme-link" href="{{ url_for('ana_sayfa') }}">İlk yol haritanı çıkar</a>
+    </section>
+    {% endif %}
+
+    {% include "_rozetler.html" %}
+{% endblock %}

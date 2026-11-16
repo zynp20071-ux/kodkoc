@@ -1,0 +1,18 @@
+# API anahtarı GitHub'a yüklenmesin
+.env
+
+# Python'un otomatik oluşturduğu dosyalar
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Kişisel yol haritası çıktıları
+yol_haritalari/
+
+# Kişisel veritabanı (8. hafta) - her öğrencinin kendi bilgisayarında oluşur
+kodkoc.db
+
+# Neon/başka araçların yazdığı yerel ayar dosyaları (veritabanı şifresi içerir)
+.env.local
+.env.*.local

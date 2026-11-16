@@ -1,0 +1,36 @@
+# Render "Blueprint" dosyası: Render bu dosyayı okuyup uygulamayı ve veritabanını
+# kendisi kurar. Kullanım: Render'da "New > Blueprint" seç, GitHub deposunu bağla.
+# "sync: false" olan ayarları (gizli anahtarlar) Render kurulum sırasında sana sorar;
+# bunlar bu dosyaya ve GitHub'a ASLA yazılmaz.
+
+services:
+  - type: web
+    name: kodkoc
+    runtime: python
+    plan: free
+    region: frankfurt                # Neon veritabanıyla aynı bölge (AWS eu-central-1); sorgular hızlı olsun
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --timeout 120
+    healthCheckPath: /saglik
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.7"
+      - key: KODKOC_CANLI
+        value: "1"
+      - key: TZ
+        value: Europe/Istanbul
+      - key: GUNLUK_YZ_SINIRI
+        value: "40"
+      - key: GUNLUK_TOPLAM_YZ_SINIRI
+        value: "400"                 # Bütün site için; Gemini anahtarının günlük kotasının altında tut
+      - key: FLASK_SECRET_KEY
+        generateValue: true          # Render rastgele, uzun bir değer üretir
+      - key: GEMINI_API_KEY
+        sync: false                  # Kurulumda sorulur
+      - key: OGRETMEN_KODU
+        sync: false                  # Kurulumda sorulur
+      - key: DATABASE_URL
+        sync: false                  # Neon'daki PostgreSQL'in bağlantı adresi (kurulumda sorulur)
+
+# Veritabanı Render'da değil Neon'da (neon.tech): Neon'un ücretsiz veritabanı süreyle
+# silinmiyor. Neon panelinden "Connection string"i kopyalayıp DATABASE_URL'e yapıştır.

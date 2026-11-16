@@ -1,0 +1,39 @@
+{% extends "taban.html" %}
+{# Öğretmen paneli: sınıf listesi ve yeni sınıf açma (8. hafta) #}
+
+{% block baslik %}Öğretmen paneli · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Öğretmen paneli</h1>
+    <p class="aciklama">Bir sınıf aç, katılım kodunu öğrencilerinle paylaş. Kodla katılan öğrencilerin ilerlemesini buradan takip edebilirsin.</p>
+
+    <section class="kart">
+      <form method="post" action="{{ url_for('sinif_olustur') }}" class="satir-form">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="ad">Yeni sınıf</label>
+        <div class="satir">
+          <input type="text" id="ad" name="ad" placeholder="Örnek: Programlama Temelleri - A Şubesi" maxlength="60" required>
+          <button type="submit">Sınıf aç</button>
+        </div>
+      </form>
+    </section>
+
+    {% if siniflar %}
+    <h2 class="ara-baslik">Sınıfların</h2>
+    <ul class="gecmis-listesi">
+      {% for sinif in siniflar %}
+      <li>
+        <a class="gecmis-ogesi sinif-karti" href="{{ url_for('sinif_detay', sinif_id=sinif.id) }}">
+          <span>
+            <span class="gecmis-proje">{{ sinif.ad }}</span>
+            <span class="gecmis-durum">{{ sinif.ogrenci_sayisi }} öğrenci · Açılış: {{ sinif.olusturma_zamani | tarih }}</span>
+          </span>
+          <span class="kod-rozeti" title="Katılım kodu">{{ sinif.katilim_kodu }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="aciklama">Henüz bir sınıfın yok. Yukarıdan ilk sınıfını aç.</p>
+    {% endif %}
+{% endblock %}
