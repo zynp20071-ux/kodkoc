@@ -14,6 +14,19 @@
       <span class="ipucu-yazi">Öğrenciler "Sınıfım" sayfasına bu kodu yazarak katılır.</span>
     </div>
 
+    <!-- Sınıf projesi: bütün sınıfa ortak bir proje. Öğrenciler ana sayfada görür. -->
+    <details class="kart profil-bolumu" id="sinif-projesi" {% if not sinif.proje %}open{% endif %}>
+      <summary>{{ 'Sınıf projesi: ' ~ (sinif.proje | truncate(80)) if sinif.proje else 'Sınıfa ortak proje ver' }}</summary>
+      <form method="post" action="{{ url_for('sinif_projesi', sinif_id=sinif.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="sinif-proje-metni">Proje açıklaması</label>
+        <textarea id="sinif-proje-metni" name="proje" rows="3" maxlength="{{ en_uzun_proje }}"
+                  placeholder="Örnek: Python ile bir kütüphane takip programı. Kitap eklenebilsin, ödünç verilebilsin, kayıtlar dosyada saklansın.">{{ sinif.proje or '' }}</textarea>
+        <button type="submit" class="ikincil">Kaydet</button>
+        <p class="ipucu-yazi">Öğrenciler ana sayfalarında "Bu projeyle başla" düğmesini görür. Her öğrenci kendi yol haritasını çıkarır; tabloda "Sınıf projesi" sütununda ilerlemelerini görürsün. Kaldırmak için metni silip kaydet.</p>
+      </form>
+    </details>
+
     {% if takilanlar %}
     <!-- En önemli bilgi en üstte: kime yardım etmeli? -->
     <section class="dikkat takilanlar">
@@ -102,6 +115,7 @@
           <tr>
             <th>Öğrenci</th>
             <th>Yol haritası</th>
+            {% if sinif.proje %}<th title="Sınıf projesi için çıkardığı yol haritasının ilerlemesi">Sınıf projesi</th>{% endif %}
             <th>İlerleme</th>
             <th>İpucu</th>
             <th title="GitHub'dan çekilen commit sayısı">Commit</th>
@@ -116,6 +130,13 @@
           <tr>
             <td><a href="{{ url_for('ogrenci_detay', ogrenci_id=o.id, sinif=sinif.id) }}">{{ o.kullanici_adi }}</a></td>
             <td>{{ o.harita_sayisi }}</td>
+            {% if sinif.proje %}
+            <td>
+              {% if o.proje_harita_id %}
+              <a href="{{ url_for('ogrenci_yol_haritasi', ogrenci_id=o.id, harita_id=o.proje_harita_id) }}">%{{ o.proje_yuzde }}</a>
+              {% else %}<span class="gecmis-durum">Başlamadı</span>{% endif %}
+            </td>
+            {% endif %}
             <td class="ilerleme-hucresi">
               {% if o.toplam > 0 %}
               <span class="ilerleme-cubugu kucuk"><span class="ilerleme-dolu" style="width: {{ o.yuzde }}%"></span></span>
@@ -145,6 +166,32 @@
     {% else %}
     <section class="kart">
       <p class="aciklama">Bu sınıfa henüz kimse katılmadı. Yukarıdaki kodu öğrencilerinle paylaş.</p>
+    </section>
+    {% endif %}
+
+    {% if akis %}
+    <!-- Son etkinlikler: sınıfta en son ne oldu? (6 farklı tablodan UNION ALL ile) -->
+    <h2 class="ara-baslik" id="etkinlikler">Son etkinlikler</h2>
+    <section class="kart">
+      <ul class="etkinlik-akisi">
+        {% for e in akis %}
+        <li class="etkinlik-{{ e.tur }}">
+          <span class="gecmis-durum">{{ e.zaman | tarih }}</span>
+          <span>
+            <strong>{{ e.kullanici_adi }}</strong>
+            {% if e.tur == 'harita' %}yeni yol haritası çıkardı:
+            {% elif e.tur == 'adim' %}bir adımı bitirdi:
+            {% elif e.tur == 'ipucu' %}ipucu aldı:
+            {% elif e.tur == 'soru' %}koça soru sordu:
+            {% elif e.tur == 'inceleme' %}kodunu incelettirdi:
+            {% else %}commit attı:{% endif %}
+            <a href="{{ url_for('ogrenci_yol_haritasi', ogrenci_id=e.ogrenci_id, harita_id=e.harita_id) }}{% if e.adim_id %}#adim-{{ e.adim_id }}{% endif %}">
+              {%- if e.sira %}{{ e.baslik | adim_basligi(e.sira) }}{% else %}{{ e.baslik | truncate(70) }}{% endif -%}
+            </a>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
     </section>
     {% endif %}
 

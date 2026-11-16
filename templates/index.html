@@ -38,6 +38,24 @@
     </section>
     {% endif %}
 
+    {% if sinif_projeleri and not sinif_proje %}
+    <!-- Öğretmenlerin sınıfa verdiği ortak projeler -->
+    <section class="kart sinif-projesi-karti">
+      <span class="etiket">Öğretmeninin verdiği proje</span>
+      {% for s in sinif_projeleri %}
+      <div class="sinif-projesi">
+        <p class="sinif-projesi-metni">{{ s.proje }}</p>
+        <span class="gecmis-durum">{{ s.ogretmen_adi }} · {{ s.ad }}</span>
+        {% if s.proje_harita_id %}
+        <a class="dugme-link" href="{{ url_for('yol_haritasi_goster', harita_id=s.proje_harita_id) }}">Yol haritana devam et</a>
+        {% else %}
+        <a class="dugme-link" href="{{ url_for('ana_sayfa', sinif_proje=s.id) }}#form">Bu projeyle başla</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
     {% if hedefler %}
     <!-- Öğretmenin koyduğu, önümüzdeki 7 gün içindeki (ya da gecikmiş) hedefler -->
     <section class="kart hedef-karti">
@@ -88,6 +106,12 @@
 
       <form method="post" action="{{ url_for('yol_haritasi') }}" id="form">
         <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        {% if sinif_proje %}
+        <!-- Sınıf projesi: yol haritası bu sınıfa bağlanır, öğretmen ilerlemeyi tabloda görür.
+             Sunucu, öğrencinin gerçekten bu sınıfta olup olmadığını yine de kontrol eder. -->
+        <input type="hidden" name="sinif_proje" value="{{ sinif_proje.id }}">
+        <p class="bilgi-notu">Bu yol haritası <strong>{{ sinif_proje.ad }}</strong> sınıfının projesi için çıkarılacak; öğretmenin ilerlemeni görecek. Projeyi kendi cümlelerinle değiştirebilir, ekleme yapabilirsin.</p>
+        {% endif %}
         <label for="proje">Projen</label>
         <textarea id="proje" name="proje" rows="5" placeholder="Örnek: Python ile basit bir yapılacaklar listesi uygulaması yapmak istiyorum. Görev ekleyip silebileyim.">{{ proje or '' }}</textarea>
 

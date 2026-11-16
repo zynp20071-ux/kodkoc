@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet. 251 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı. 264 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -370,8 +370,10 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Hedef tarihler | `app.py` → `hedef_tarih_koy()`, `hedef_durumu()`, `gun` filtresi; `veritabani.py` 18. bölüm |
 | Sınıftan çıkarma | `app.py` → `siniftan_cikar()` |
 | Haftalık özet | `app.py` → `hafta_basi()`, `ana_sayfa()`; `veritabani.py` → `haftalik_ozet()` |
+| Sınıf projesi | `app.py` → `sinif_projesi()`, `sinif_projesi_bul()`, `yol_haritasi()`; `veritabani.py` 19. bölüm |
+| Son etkinlikler akışı | `veritabani.py` → `sinif_etkinlik_akisi()`; `templates/sinif_detay.html` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -426,6 +428,12 @@ Evet, profil sayfasından. Kişisel verinin sahibi kullanıcı; istediği zaman 
 
 **Hedef tarihler nasıl çalışıyor? Tarihleri nasıl karşılaştırıyorsun?**
 Öğretmen, öğrencinin bir adımına `<input type="date">` ile tarih koyuyor; tarayıcı değeri `2026-11-21` biçiminde gönderiyor. Formdan gelene güvenmeyip `date.fromisoformat` ile gerçekten tarih mi diye bakıyorum (`2026-02-30` reddediliyor) ve bugünden en fazla bir yıl önce/sonra olmasına izin veriyorum. Veritabanında metin olarak `YYYY-AA-GG` saklıyorum; bu biçimde metin karşılaştırması tarih karşılaştırmasıyla aynı sonucu veriyor (`"2026-11-20" < "2026-11-21"`), o yüzden SQL'de `a.hedef_tarih < ?` yeterli. Durum ("Gecikti", "Yaklaşıyor") veritabanında saklanmıyor, her seferinde `hedef_durumu()` ile bugüne göre hesaplanıyor; yoksa ertesi gün yanlış kalırdı. Biten adımın tarihi geçse bile "gecikmiş" sayılmıyor.
+
+**Sınıf projesi nasıl çalışıyor? Öğrenci başka sınıfın projesine yol haritası bağlayabilir mi?**
+Öğretmen sınıfa bir proje metni yazıyor (`siniflar.proje`). Öğrenci ana sayfada "Bu projeyle başla"ya basınca form o metinle doluyor ve forma gizli bir `sinif_proje` alanı ekleniyor. Yol haritası kaydedilirken `yol_haritalari.sinif_id` doluyor; öğretmenin tablosundaki "Sınıf projesi" sütunu bu yol haritasının ilerlemesini gösteriyor. Gizli alan değiştirilebilir, o yüzden sunucu `sinif_projesi_bul()` ile öğrencinin **gerçekten o sınıfta** olduğunu ve sınıfın projesi olduğunu kontrol ediyor; değilse yol haritası sınıfa bağlanmıyor. `sinif_id` bilerek yabancı anahtar değil: sınıf silinince öğrencinin yol haritası silinmemeli, sadece bağ kopmalı (`SET sinif_id = NULL`).
+
+**"Son etkinlikler" listesini nasıl yaptın?**
+Altı ayrı tablodan (yol haritaları, biten adımlar, ipuçları, sorular, incelemeler, commit'ler) `UNION ALL` ile aynı biçimde satırlar üretip `ORDER BY zaman DESC LIMIT 20` ile en yeni 20'yi alıyorum. Her satırda olayın türü (`'ipucu'`, `'adim'`...) metin olarak var; şablon buna göre "ipucu aldı", "bir adımı bitirdi" yazıyor. `UNION`'da bütün SELECT'lerin sütun sayısı ve sırası aynı olmalı. Boş bir sütun için `CAST(NULL AS INTEGER)` yazdım, çünkü PostgreSQL boş değerin tipini kendisi bilemiyor.
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

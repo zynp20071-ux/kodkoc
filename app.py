@@ -616,6 +616,20 @@ def cikis():
 # Sayfalar (route'lar): Hangi adreste ne olacağını belirler
 # ---------------------------------------------------------------------------
 
+def sinif_projesi_bul(sinif_id):
+    """
+    Giriş yapmış öğrencinin ÜYE OLDUĞU ve projesi olan bir sınıfı döndürür, yoksa None.
+    Formdan/adresten gelen sınıf numarasına körü körüne güvenmiyoruz: öğrenci başka
+    bir sınıfın numarasını yazarsa o sınıfa yol haritası bağlanamaz.
+    """
+    if not sinif_id:
+        return None
+    for sinif in veritabani.ogrencinin_siniflari(aktif_id()):
+        if sinif["id"] == sinif_id and sinif["proje"]:
+            return sinif
+    return None
+
+
 @app.route("/", methods=["GET"])
 @giris_gerekli
 def ana_sayfa():
@@ -640,12 +654,19 @@ def ana_sayfa():
     hafta = veritabani.haftalik_ozet(aktif_id(), pazartesi.isoformat(),
                                      (pazartesi - timedelta(days=7)).isoformat())
 
+    # Öğretmenlerin verdiği sınıf projeleri (öğrencinin üye olduğu, projesi olan sınıflar)
+    sinif_projeleri = [s for s in veritabani.ogrencinin_siniflari(aktif_id()) if s["proje"]]
+    # "Bu projeyle başla"ya basıldıysa (/?sinif_proje=3) formu sınıf projesiyle doldur
+    secilen = sinif_projesi_bul(request.args.get("sinif_proje", type=int))
+    proje = secilen["proje"] if secilen else request.args.get("proje", "")[:1000]
+
     return render_template("index.html", anahtar_var=bool(api_anahtari()), canli=CANLI,
                            yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI,
                            hedefler=hedefler, hafta=hafta,
+                           sinif_projeleri=sinif_projeleri, sinif_proje=secilen,
                            devam=devam, yeni_duyurular=yeni_duyurular,
                            devam_yuzde=ilerleme_hesapla(devam["biten"], devam["toplam"]) if devam else 0,
-                           proje=request.args.get("proje", "")[:1000],
+                           proje=proje,
                            bilgi=request.args.get("bilgi", "")[:200])
 
 
@@ -702,31 +723,35 @@ def yol_haritasi():
     """POST: Formdan gelen projeyi yapay zekâya gönderir ve sonucu gösterir."""
     proje = request.form.get("proje", "").strip()
     bilgi = request.form.get("bilgi", "").strip()
+    # Sınıf projesi için mi? (Gizli alan; öğrenci gerçekten o sınıftaysa kabul edilir)
+    sinif_proje = sinif_projesi_bul(request.form.get("sinif_proje", type=int))
+
+    def formu_tekrar_goster(hata):
+        """Hata olursa formu, yazılanlar ve sınıf projesi bağı kaybolmadan yeniden göster."""
+        return render_template("index.html", anahtar_var=True, proje=proje, bilgi=bilgi,
+                               sinif_proje=sinif_proje, hata=hata)
 
     # Boş form gönderilirse uyarı ver
     if not proje:
-        return render_template("index.html", anahtar_var=True, bilgi=bilgi,
-                               hata="Lütfen önce projeni anlat.")
+        return formu_tekrar_goster("Lütfen önce projeni anlat.")
 
     anahtar = api_anahtari()
     if not anahtar:
         return redirect(url_for("ana_sayfa"))
     if yz_kotasi_doldu():
-        return render_template("index.html", anahtar_var=True, proje=proje, bilgi=bilgi,
-                               hata=kota_mesaji())
+        return formu_tekrar_goster(kota_mesaji())
 
     try:
         istemci = genai.Client(api_key=anahtar)
         cevap = kodkoc.yol_haritasi_iste(istemci, proje, bilgi)
     except Exception as hata:
-        return render_template("index.html", anahtar_var=True, proje=proje, bilgi=bilgi,
-                               hata=anlasilir_hata(hata))
+        return formu_tekrar_goster(anlasilir_hata(hata))
     veritabani.yz_kullanimi_ekle(aktif_id())
 
     # 7. haftadaki gibi .md dosyasına da kaydet (sadece yerelde), ayrıca (8. hafta) veritabanına ekle
     dosya_yolu = None if CANLI else kodkoc.kaydet(proje, cevap)
-    harita_id = veritabani.yol_haritasi_ekle(proje, bilgi, cevap, dosya_yolu,
-                                            kullanici_id=aktif_id())
+    harita_id = veritabani.yol_haritasi_ekle(proje, bilgi, cevap, dosya_yolu, kullanici_id=aktif_id(),
+                                            sinif_id=sinif_proje["id"] if sinif_proje else None)
 
     # Sonucu doğrudan göstermek yerine yol haritasının kendi sayfasına yönlendir.
     # Böylece sayfa yenilenince form tekrar gönderilmez (yapay zekâya boşuna
@@ -1440,6 +1465,9 @@ def sinif_detay(sinif_id):
             "commit_sayisi": satir["commit_sayisi"],
             "yz_hafta": satir["yz_hafta"],                   # Son 7 günde yapay zekâ isteği
             "geciken": satir["geciken_adim"],                # Hedef tarihi geçmiş, bitmemiş adım
+            # Sınıf projesi: bu sınıfın projesi için çıkardığı yol haritası ve ilerlemesi
+            "proje_harita_id": satir["proje_harita_id"],
+            "proje_yuzde": ilerleme_hesapla(satir["proje_biten"], satir["proje_toplam"]),
             "son_etkinlik": satir["son_etkinlik"] or None,   # '' ise "henüz yok"
         })
 
@@ -1452,10 +1480,33 @@ def sinif_detay(sinif_id):
                            istatistik=sinif_istatistigi(ogrenciler, etkinlikler, bugun),
                            takilanlar=veritabani.takilan_adimlar(sinif_id),
                            duyurular=veritabani.sinifin_duyurulari(sinif_id),
-                           en_uzun_duyuru=EN_UZUN_DUYURU)
+                           akis=veritabani.sinif_etkinlik_akisi(sinif_id),
+                           en_uzun_duyuru=EN_UZUN_DUYURU, en_uzun_proje=EN_UZUN_SINIF_PROJESI)
 
 
 EN_UZUN_DUYURU = 1000
+EN_UZUN_SINIF_PROJESI = 1000
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/proje", methods=["POST"])
+@ogretmen_gerekli
+def sinif_projesi(sinif_id):
+    """
+    POST: Öğretmen sınıfa ortak bir proje verir (boş gönderilirse projeyi kaldırır).
+    Öğrenciler ana sayfada görür ve tek tıkla bu projeden yol haritası çıkarır.
+    """
+    if veritabani.sinif_getir(sinif_id, aktif_id()) is None:
+        abort(404)
+    proje = request.form.get("proje", "").strip()
+    if len(proje) > EN_UZUN_SINIF_PROJESI:
+        flash(f"Proje açıklaması en fazla {EN_UZUN_SINIF_PROJESI} karakter olabilir.", "hata")
+    elif not proje:
+        veritabani.sinif_proje_ayarla(sinif_id, None)
+        flash("Sınıf projesi kaldırıldı. Öğrencilerin çıkardığı yol haritaları yerinde duruyor.", "bilgi")
+    else:
+        veritabani.sinif_proje_ayarla(sinif_id, proje)
+        flash("Sınıf projesi kaydedildi. Öğrenciler ana sayfalarında görecek.", "bilgi")
+    return redirect(url_for("sinif_detay", sinif_id=sinif_id) + "#sinif-projesi")
 
 
 @app.route("/ogretmen/sinif/<int:sinif_id>/duyuru", methods=["POST"])

@@ -42,6 +42,14 @@
         <div>
           <span class="gecmis-proje">{{ sinif.ad }}</span>
           <span class="gecmis-durum">Öğretmen: {{ sinif.ogretmen_adi }} · Katılma: {{ sinif.katilma_zamani | tarih }}</span>
+          {% if sinif.proje %}
+          <p class="sinif-projesi-metni"><strong>Sınıf projesi:</strong> {{ sinif.proje }}</p>
+          {% if sinif.proje_harita_id %}
+          <a href="{{ url_for('yol_haritasi_goster', harita_id=sinif.proje_harita_id) }}">Yol haritana git →</a>
+          {% else %}
+          <a href="{{ url_for('ana_sayfa', sinif_proje=sinif.id) }}#form">Bu projeyle yol haritası çıkar →</a>
+          {% endif %}
+          {% endif %}
         </div>
         <form method="post" action="{{ url_for('siniftan_ayril', sinif_id=sinif.id) }}"
               onsubmit="return confirm('Bu sınıftan ayrılmak istediğine emin misin? Öğretmenin artık ilerlemeni göremeyecek.');">

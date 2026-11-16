@@ -1166,3 +1166,20 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 
 .haftalik-ozet { color: var(--yumusak); margin: 0 0 16px; }
 .tablo button.sil { margin-top: 0; padding: 0; font-size: 14px; }
+/* --- Sınıf projesi kartı (ana sayfa), bilgi notu (form üstü) ve son etkinlikler akışı --- */
+.sinif-projesi { padding: 10px 0; border-top: 1px solid var(--cizgi); }
+.sinif-projesi:first-of-type { border-top: none; }
+.sinif-projesi-metni { margin: 6px 0; white-space: pre-line; }
+.sinif-projesi .dugme-link { margin-top: 8px; }
+.bilgi-notu {
+  background: var(--yesil-acik);
+  color: var(--yesil-yazi);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+}
+.etkinlik-akisi { list-style: none; padding: 0; margin: 0; }
+.etkinlik-akisi li { display: flex; gap: 12px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--cizgi); }
+.etkinlik-akisi li:first-child { border-top: none; }
+.etkinlik-akisi .gecmis-durum { min-width: 120px; }
+.etkinlik-adim strong { color: var(--yesil); }

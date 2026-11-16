@@ -63,7 +63,9 @@ def test_ilerleme_tablosu_ve_takilanlar(sinif):
     sayfa = hoca.get(f"/ogretmen/sinif/{sinif['id']}").text
     assert "1 / 4 · %25" in sayfa
     assert "Yardıma ihtiyacı olabilir" in sayfa
-    assert f"#adim-{adimlar[1]}" in sayfa and f"#adim-{adimlar[2]}" not in sayfa
+    # Sadece "takılanlar" bölümüne bak (sayfadaki "Son etkinlikler" akışı da adımlara bağlantı veriyor)
+    takilanlar = sayfa.split("Yardıma ihtiyacı olabilir")[1].split("</section>")[0]
+    assert f"#adim-{adimlar[1]}" in takilanlar and f"#adim-{adimlar[2]}" not in takilanlar
 
     ali.post(f"/adim/{adimlar[1]}", data={"tamamlandi": "1"})
     assert "Yardıma ihtiyacı olabilir" not in hoca.get(f"/ogretmen/sinif/{sinif['id']}").text

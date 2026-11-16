@@ -474,6 +474,12 @@ def hazirla():
         sutun_yoksa_ekle(baglanti, "kullanicilar", "gecici_sifre", "INTEGER NOT NULL DEFAULT 0")
         # Öğretmenin bir adım için koyduğu hedef tarih ("2026-11-21"); yoksa boş (NULL)
         sutun_yoksa_ekle(baglanti, "adimlar", "hedef_tarih", "TEXT")
+        # Öğretmenin sınıfa verdiği ortak proje (boşsa yok)
+        sutun_yoksa_ekle(baglanti, "siniflar", "proje", "TEXT")
+        # Yol haritası bir sınıf projesi için çıkarıldıysa o sınıfın id'si.
+        # Bilerek yabancı anahtar (REFERENCES) değil: sınıf silinince yol haritası
+        # öğrencinin olarak kalmalı; o zaman bu sütunu boşaltıyoruz (sinif_sil'e bak).
+        sutun_yoksa_ekle(baglanti, "yol_haritalari", "sinif_id", "INTEGER")
 
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
@@ -547,9 +553,10 @@ def cevabi_parcala(metin):
 # 3) KAYDETME, OKUMA, GÜNCELLEME (SQL sorguları burada)
 # ---------------------------------------------------------------------------
 
-def yol_haritasi_ekle(proje, bilgi, cevap, dosya_yolu=None, kullanici_id=None):
+def yol_haritasi_ekle(proje, bilgi, cevap, dosya_yolu=None, kullanici_id=None, sinif_id=None):
     """
     Yeni bir yol haritasını ve adımlarını, sahibi olan kullanıcıyla birlikte kaydeder.
+    sinif_id: Öğretmenin verdiği sınıf projesi için çıkarıldıysa o sınıf.
     Yeni yol haritasının id numarasını döndürür.
     """
     parcalar = cevabi_parcala(cevap)
@@ -564,10 +571,11 @@ def yol_haritasi_ekle(proje, bilgi, cevap, dosya_yolu=None, kullanici_id=None):
         # ekle(): INSERT yapar ve az önce eklenen satırın id'sini döndürür
         harita_id = baglanti.ekle(
             """INSERT INTO yol_haritalari
-                   (proje, bilgi, giris, dikkat, ham_cevap, dosya_yolu, olusturma_zamani, kullanici_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (proje, bilgi, giris, dikkat, ham_cevap, dosya_yolu, olusturma_zamani, kullanici_id,
+                    sinif_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (proje, bilgi, parcalar["giris"], parcalar["dikkat"], cevap, dosya_yolu, zaman,
-             kullanici_id),
+             kullanici_id, sinif_id),
         )
 
         # Her adımı, yol haritasının id'si ile birlikte adimlar tablosuna ekle
@@ -999,6 +1007,8 @@ def sinif_sil(sinif_id, ogretmen_id):
             return False
         baglanti.execute("DELETE FROM sinif_uyeleri WHERE sinif_id = ?", (sinif_id,))
         baglanti.execute("DELETE FROM duyurular WHERE sinif_id = ?", (sinif_id,))
+        # Sınıf projesi için çıkarılmış yol haritaları öğrencide kalır, sadece sınıf bağı kopar
+        baglanti.execute("UPDATE yol_haritalari SET sinif_id = NULL WHERE sinif_id = ?", (sinif_id,))
         baglanti.execute("DELETE FROM siniflar WHERE id = ?", (sinif_id,))
         baglanti.commit()
         return True
@@ -1049,7 +1059,10 @@ def ogrencinin_siniflari(ogrenci_id):
     baglanti = baglan()
     try:
         return baglanti.execute("""
-            SELECT s.id, s.ad, k.kullanici_adi AS ogretmen_adi, u.katilma_zamani
+            SELECT s.id, s.ad, s.proje, k.kullanici_adi AS ogretmen_adi, u.katilma_zamani,
+                   -- Bu sınıfın projesi için çıkardığı en son yol haritası (yoksa boş)
+                   (SELECT MAX(y.id) FROM yol_haritalari y
+                     WHERE y.kullanici_id = u.ogrenci_id AND y.sinif_id = s.id) AS proje_harita_id
             FROM sinif_uyeleri AS u
             JOIN siniflar     AS s ON s.id = u.sinif_id
             JOIN kullanicilar AS k ON k.id = s.ogretmen_id
@@ -1077,6 +1090,15 @@ def sinif_ozeti(sinif_id):
                    -- Son 7 günde yapay zekâya gönderdiği istek sayısı (yz_kullanimi tablosundan)
                    (SELECT COALESCE(SUM(z.sayi), 0) FROM yz_kullanimi z
                      WHERE z.kullanici_id = k.id AND z.gun >= ?)        AS yz_hafta,
+                   -- Sınıf projesi: bu sınıfın projesi için çıkardığı en son yol haritası ve ilerlemesi
+                   (SELECT MAX(y.id) FROM yol_haritalari y
+                     WHERE y.kullanici_id = k.id AND y.sinif_id = u.sinif_id)  AS proje_harita_id,
+                   (SELECT COUNT(*) FROM adimlar a WHERE a.yol_haritasi_id =
+                      (SELECT MAX(y.id) FROM yol_haritalari y
+                        WHERE y.kullanici_id = k.id AND y.sinif_id = u.sinif_id)) AS proje_toplam,
+                   (SELECT COUNT(*) FROM adimlar a WHERE a.tamamlandi = 1 AND a.yol_haritasi_id =
+                      (SELECT MAX(y.id) FROM yol_haritalari y
+                        WHERE y.kullanici_id = k.id AND y.sinif_id = u.sinif_id)) AS proje_biten,
                    -- Hedef tarihi geçmiş ama bitmemiş adım sayısı
                    (SELECT COUNT(*) FROM adimlar a
                      JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
@@ -1962,6 +1984,8 @@ def hesap_sil(kullanici_id, sifre):
         siniflari = "SELECT id FROM siniflar WHERE ogretmen_id = :k"
         baglanti.execute(f"DELETE FROM duyurular WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
         baglanti.execute(f"DELETE FROM sinif_uyeleri WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
+        baglanti.execute(f"UPDATE yol_haritalari SET sinif_id = NULL WHERE sinif_id IN ({siniflari})",
+                         {"k": kullanici_id})
         baglanti.execute("DELETE FROM siniflar WHERE ogretmen_id = :k", {"k": kullanici_id})
 
         # 3) Üyelikler, yapay zekâ sayacı, giriş denemeleri ve en son kullanıcı
@@ -2027,5 +2051,71 @@ def haftalik_ozet(kullanici_id, bu_hafta_basi, gecen_hafta_basi):
                   AND a.tamamlanma_zamani >= :gecen AND a.tamamlanma_zamani < :bu) AS gecen_hafta
         """, {"k": kullanici_id, "bu": bu_hafta_basi, "gecen": gecen_hafta_basi}).fetchone()
         return {"bu_hafta": satir["bu_hafta"], "gecen_hafta": satir["gecen_hafta"]}
+    finally:
+        baglanti.close()
+
+# ---------------------------------------------------------------------------
+# 19) SINIF PROJESİ VE SINIFIN SON ETKİNLİKLERİ
+# ---------------------------------------------------------------------------
+
+def sinif_proje_ayarla(sinif_id, proje):
+    """Sınıfın ortak projesini ayarlar; proje None ise kaldırır. (Yetki app.py'de kontrol edilir.)"""
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE siniflar SET proje = ? WHERE id = ?", (proje, sinif_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def sinif_etkinlik_akisi(sinif_id, sinir=20):
+    """
+    Sınıftaki öğrencilerin son etkinlikleri, en yenisi en üstte:
+    yol haritası çıkarma, adım bitirme, ipucu, koça soru, kod inceleme, commit.
+
+    UNION ALL ile altı farklı tablodan aynı biçimde satırlar üretiyoruz; her satırın
+    "tur" sütunu olayın ne olduğunu söylüyor. Bütün SELECT'lerde sütun sayısı ve sırası
+    aynı olmalı. İlk SELECT'teki CAST(NULL AS INTEGER): PostgreSQL boş değerin tipini
+    bilemez, sayı olduğunu biz söylüyoruz.
+    """
+    adim_ortak = """
+        JOIN adimlar a ON a.id = x.adim_id
+        JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+        JOIN kullanicilar k ON k.id = y.kullanici_id
+        WHERE y.kullanici_id IN (SELECT ogrenci_id FROM sinif_uyeleri WHERE sinif_id = :s)"""
+    sorgu = f"""
+        SELECT * FROM (
+            SELECT 'harita' AS tur, y.olusturma_zamani AS zaman, k.id AS ogrenci_id, k.kullanici_adi,
+                   y.id AS harita_id, CAST(NULL AS INTEGER) AS adim_id, CAST(NULL AS INTEGER) AS sira,
+                   y.proje AS baslik
+              FROM yol_haritalari y JOIN kullanicilar k ON k.id = y.kullanici_id
+             WHERE y.kullanici_id IN (SELECT ogrenci_id FROM sinif_uyeleri WHERE sinif_id = :s)
+            UNION ALL
+            SELECT 'adim', a.tamamlanma_zamani, k.id, k.kullanici_adi, y.id, a.id, a.sira, a.baslik
+              FROM adimlar a JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+              JOIN kullanicilar k ON k.id = y.kullanici_id
+             WHERE a.tamamlandi = 1 AND a.tamamlanma_zamani IS NOT NULL
+               AND y.kullanici_id IN (SELECT ogrenci_id FROM sinif_uyeleri WHERE sinif_id = :s)
+            UNION ALL
+            SELECT 'ipucu', x.olusturma_zamani, k.id, k.kullanici_adi, y.id, a.id, a.sira, a.baslik
+              FROM ipuclari x {adim_ortak}
+            UNION ALL
+            SELECT 'soru', x.olusturma_zamani, k.id, k.kullanici_adi, y.id, a.id, a.sira, a.baslik
+              FROM koc_sorulari x {adim_ortak}
+            UNION ALL
+            SELECT 'inceleme', x.olusturma_zamani, k.id, k.kullanici_adi, y.id, a.id, a.sira, a.baslik
+              FROM kod_incelemeleri x {adim_ortak}
+            UNION ALL
+            SELECT 'commit', c.tarih, k.id, k.kullanici_adi, y.id, c.adim_id, CAST(NULL AS INTEGER), c.mesaj
+              FROM commitler c JOIN yol_haritalari y ON y.id = c.yol_haritasi_id
+              JOIN kullanicilar k ON k.id = y.kullanici_id
+             WHERE y.kullanici_id IN (SELECT ogrenci_id FROM sinif_uyeleri WHERE sinif_id = :s)
+        ) AS olaylar
+        ORDER BY zaman DESC
+        LIMIT {int(sinir)}
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute(sorgu, {"s": sinif_id}).fetchall()
     finally:
         baglanti.close()
