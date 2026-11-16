@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme. 228 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet. 251 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -367,8 +367,11 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Kalan yapay zekâ hakkı, sınıfın 7 günlük kullanımı | `app.py` → `kalan_yz_hakki()`; `veritabani.py` → `sinif_ozeti()` (`yz_hafta`) |
 | Öğretmenin şifre sıfırlaması | `app.py` → `ogrenci_sifre_sifirla()`, `kullaniciyi_yukle()` (zorunlu şifre değiştirme); `veritabani.py` → `gecici_sifre_ver()` |
 | Hesap silme | `app.py` → `hesabi_sil()`; `veritabani.py` → `hesap_sil()` |
+| Hedef tarihler | `app.py` → `hedef_tarih_koy()`, `hedef_durumu()`, `gun` filtresi; `veritabani.py` 18. bölüm |
+| Sınıftan çıkarma | `app.py` → `siniftan_cikar()` |
+| Haftalık özet | `app.py` → `hafta_basi()`, `ana_sayfa()`; `veritabani.py` → `haftalik_ozet()` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -420,6 +423,12 @@ E-posta sistemi yok; okulda şifresini unutan öğrenci zaten öğretmenine gidi
 
 **Kullanıcı hesabını silebiliyor mu?**
 Evet, profil sayfasından. Kişisel verinin sahibi kullanıcı; istediği zaman silebilmeli. Yanlışlıkla olmasın diye şifre ve "SİL" yazması isteniyor. Bütün veriler (yol haritaları, ipuçları, sorular, sınıf üyelikleri, yapay zekâ sayacı) **tek işlemde** siliniyor; yarıda hata olursa hiçbiri silinmiyor. Öğretmense açtığı sınıflar ve yazdığı yorumlar da gidiyor. Sıra yabancı anahtarlar yüzünden önemli: önce çocuk kayıtlar, en son kullanıcı. (Küçük bir tuzak: Python'da `"sil".upper()` → `"SIL"` veriyor, Türkçe İ'yi bilmiyor; iki yazımı da kabul ediyorum.)
+
+**Hedef tarihler nasıl çalışıyor? Tarihleri nasıl karşılaştırıyorsun?**
+Öğretmen, öğrencinin bir adımına `<input type="date">` ile tarih koyuyor; tarayıcı değeri `2026-11-21` biçiminde gönderiyor. Formdan gelene güvenmeyip `date.fromisoformat` ile gerçekten tarih mi diye bakıyorum (`2026-02-30` reddediliyor) ve bugünden en fazla bir yıl önce/sonra olmasına izin veriyorum. Veritabanında metin olarak `YYYY-AA-GG` saklıyorum; bu biçimde metin karşılaştırması tarih karşılaştırmasıyla aynı sonucu veriyor (`"2026-11-20" < "2026-11-21"`), o yüzden SQL'de `a.hedef_tarih < ?` yeterli. Durum ("Gecikti", "Yaklaşıyor") veritabanında saklanmıyor, her seferinde `hedef_durumu()` ile bugüne göre hesaplanıyor; yoksa ertesi gün yanlış kalırdı. Biten adımın tarihi geçse bile "gecikmiş" sayılmıyor.
+
+**Haftalık özette neden sınıf sıralaması yok?**
+Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.
 
 **Saatler neden önemli?**
 Sunucular genelde dünya saatiyle (UTC) çalışıyor; Türkiye 3 saat ileride. "Bugün"ü yanlış hesaplasaydık gece 00:00-03:00 arası yapılan çalışmalar önceki güne yazılır, seri bozulurdu. Program açılırken saat dilimini `Europe/Istanbul` yapıyorum.

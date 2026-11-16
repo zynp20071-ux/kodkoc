@@ -129,6 +129,14 @@
           </form>
           {% endif %}
         </div>
+        {% if adim.hedef_durumu %}
+        <!-- Öğretmenin koyduğu hedef tarih. Renk duruma göre: gecikti / yaklaşıyor / var / tamam -->
+        <p class="hedef-etiketi hedef-{{ adim.hedef_durumu }}">
+          Hedef: {{ adim.hedef_tarih | gun }}
+          {% if adim.hedef_durumu == 'gecikti' %}· Gecikti
+          {% elif adim.hedef_durumu == 'yaklasiyor' %}· Yaklaşıyor{% endif %}
+        </p>
+        {% endif %}
         {{ adim.icerik_html | safe }}
 
         {% if adim.not_metni and not ogretmen_gorunumu %}
@@ -231,6 +239,19 @@
                 <button type="submit" class="ikincil">Yorumu gönder</button>
               </form>
             </details>
+            {% if not adim.tamamlandi %}
+            <!-- Hedef tarih: type="date" tarayıcının kendi takvimini açar, değeri "2026-11-21" biçiminde gönderir -->
+            <details>
+              <summary>{{ 'Hedef tarihi değiştir' if adim.hedef_tarih else 'Hedef tarih koy' }}</summary>
+              <form method="post" action="{{ url_for('hedef_tarih_koy', ogrenci_id=ogretmen_gorunumu.ogrenci_id, adim_id=adim.id) }}">
+                <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+                <label for="hedef-{{ adim.id }}">Bu adım ne zamana kadar bitsin?</label>
+                <input type="date" id="hedef-{{ adim.id }}" name="tarih" value="{{ adim.hedef_tarih or '' }}" min="{{ bugun }}">
+                <button type="submit" class="ikincil">Kaydet</button>
+                <p class="ipucu-yazi">Hedefi kaldırmak için tarihi silip kaydet.</p>
+              </form>
+            </details>
+            {% endif %}
           </div>
         {% else %}
         <!-- details/summary: tıklayınca açılan, tekrar tıklayınca kapanan kutu (JavaScript gerekmez) -->

@@ -175,3 +175,4 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Canlıya hazırlık (canlı mod, öğretmen davet kodu, günlük yapay zekâ sınırı, şifre deneme sınırı)
 - [x] 9. hafta: Sunucuya yükleme (Render) ve veritabanı bağlantısı (Neon PostgreSQL): https://kodkoc.onrender.com
 - [x] 9. hafta: Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme
+- [x] 9. hafta: Adımlara hedef tarih, öğrenciyi sınıftan çıkarma, haftalık özet

@@ -38,6 +38,36 @@
     </section>
     {% endif %}
 
+    {% if hedefler %}
+    <!-- Öğretmenin koyduğu, önümüzdeki 7 gün içindeki (ya da gecikmiş) hedefler -->
+    <section class="kart hedef-karti">
+      <span class="etiket">Yaklaşan hedefler</span>
+      <ul>
+        {% for h in hedefler %}
+        <li>
+          <a href="{{ url_for('yol_haritasi_goster', harita_id=h.harita_id) }}#adim-{{ h.adim_id }}">{{ h.baslik | adim_basligi(h.sira) }}</a>
+          <span class="hedef-etiketi hedef-{{ h.durum }}">
+            {{ h.hedef_tarih | gun }} ·
+            {% if h.kalan < 0 %}{{ -h.kalan }} gün gecikti{% elif h.kalan == 0 %}bugün{% elif h.kalan == 1 %}yarın{% else %}{{ h.kalan }} gün kaldı{% endif %}
+          </span>
+          <span class="gecmis-durum">{{ h.proje | truncate(60) }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if hafta and (hafta.bu_hafta or hafta.gecen_hafta) %}
+    <!-- Haftalık özet: kendini geçen haftayla karşılaştır (başkalarıyla değil) -->
+    <p class="haftalik-ozet">
+      Bu hafta <strong>{{ hafta.bu_hafta }}</strong> adım bitirdin
+      (geçen hafta {{ hafta.gecen_hafta }}).
+      {% if hafta.bu_hafta > hafta.gecen_hafta %}Geçen haftayı geçtin, harika gidiyorsun!
+      {% elif hafta.bu_hafta == hafta.gecen_hafta %}Geçen haftayla aynı tempodasın.
+      {% else %}Geçen haftaya yetişmek için {{ hafta.gecen_hafta - hafta.bu_hafta }} adım kaldı.{% endif %}
+    </p>
+    {% endif %}
+
     {% if devam %}
     <!-- "Kaldığın yerden devam et": bitmemiş en son yol haritasının sıradaki adımı -->
     <a class="devam-karti" href="{{ url_for('yol_haritasi_goster', harita_id=devam.harita_id) }}#adim-{{ devam.adim_id }}">

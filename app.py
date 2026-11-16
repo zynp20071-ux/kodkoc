@@ -430,6 +430,39 @@ def tarih_bicimle(metin):
     return datetime.strptime(metin, "%Y-%m-%d %H:%M:%S").strftime("%d.%m.%Y %H:%M")
 
 
+@app.template_filter("gun")
+def gun_bicimle(metin):
+    """'2026-11-21' -> '21.11.2026' (hedef tarihler saatsiz, sadece gün)."""
+    return date.fromisoformat(metin).strftime("%d.%m.%Y")
+
+
+YAKLASIYOR_GUN = 2          # Hedefe bu kadar gün (ya da daha az) kaldıysa "Yaklaşıyor"
+
+
+def hedef_durumu(hedef_tarih, tamamlandi, bugun):
+    """
+    Bir adımın hedef tarihine göre durumu:
+      None         : hedef yok
+      "tamam"      : adım bitmiş (tarih artık önemli değil)
+      "gecikti"    : tarih geçti, adım bitmedi
+      "yaklasiyor" : en fazla YAKLASIYOR_GUN gün kaldı
+      "var"        : hedef var, daha zaman var
+    """
+    if not hedef_tarih:
+        return None
+    if tamamlandi:
+        return "tamam"
+    kalan = (date.fromisoformat(hedef_tarih) - bugun).days
+    if kalan < 0:
+        return "gecikti"
+    return "yaklasiyor" if kalan <= YAKLASIYOR_GUN else "var"
+
+
+def hafta_basi(gun):
+    """Verilen günün haftasının pazartesisi. weekday(): pazartesi 0, pazar 6."""
+    return gun - timedelta(days=gun.weekday())
+
+
 @app.route("/saglik")
 def saglik():
     """
@@ -594,8 +627,22 @@ def ana_sayfa():
     devam = veritabani.devam_edilecek_adim(aktif_id())
     # Öğretmenden gelen, henüz görülmemiş en fazla 3 duyuru (ana sayfanın en üstünde gösterilir)
     yeni_duyurular = veritabani.ogrencinin_duyurulari(aktif_id(), sadece_yeniler=True, sinir=3)
+
+    # Yaklaşan hedefler: önümüzdeki 7 gün içindeki (ve gecikmiş) bitmemiş adımlar
+    bugun = date.today()
+    hedefler = [
+        {**dict(h), "durum": hedef_durumu(h["hedef_tarih"], False, bugun),
+         "kalan": (date.fromisoformat(h["hedef_tarih"]) - bugun).days}
+        for h in veritabani.yaklasan_hedefler(aktif_id(), (bugun + timedelta(days=7)).isoformat())
+    ]
+    # Haftalık özet: bu hafta ve geçen hafta bitirilen adımlar (hafta pazartesi başlar)
+    pazartesi = hafta_basi(bugun)
+    hafta = veritabani.haftalik_ozet(aktif_id(), pazartesi.isoformat(),
+                                     (pazartesi - timedelta(days=7)).isoformat())
+
     return render_template("index.html", anahtar_var=bool(api_anahtari()), canli=CANLI,
                            yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI,
+                           hedefler=hedefler, hafta=hafta,
                            devam=devam, yeni_duyurular=yeni_duyurular,
                            devam_yuzde=ilerleme_hesapla(devam["biten"], devam["toplam"]) if devam else 0,
                            proje=request.args.get("proje", "")[:1000],
@@ -727,6 +774,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
             adim_commitleri.setdefault(c["adim_id"], []).append(c)
 
     # Her adımın maddelerini HTML'e çevirip şablona hazır hale getir
+    bugun = date.today()
     adimlar = []
     for satir in adim_satirlari:
         adim_ipuclari = [
@@ -742,6 +790,8 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
             "kendi_eklendi": bool(satir["kendi_eklendi"]),
             "icerik_html": guvenli_markdown(satir["icerik"]),
             "tamamlandi": bool(satir["tamamlandi"]),
+            "hedef_tarih": satir["hedef_tarih"],
+            "hedef_durumu": hedef_durumu(satir["hedef_tarih"], satir["tamamlandi"], bugun),
             "not_metni": satir["not_metni"] or "",
             "ipuclari": adim_ipuclari,
             "ipucu_hakki_var": len(adim_ipuclari) < EN_FAZLA_IPUCU,
@@ -783,6 +833,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
                            en_fazla_soru=EN_FAZLA_SORU,
                            en_uzun_soru=EN_UZUN_SORU,
                            ogretmen_gorunumu=ogretmen_gorunumu,
+                           bugun=bugun.isoformat(),
                            commitler=commitler,
                            yeni_yorum_idleri=yeni_yorum_idleri)
 
@@ -1388,6 +1439,7 @@ def sinif_detay(sinif_id):
             "ipucu_sayisi": satir["ipucu_sayisi"],
             "commit_sayisi": satir["commit_sayisi"],
             "yz_hafta": satir["yz_hafta"],                   # Son 7 günde yapay zekâ isteği
+            "geciken": satir["geciken_adim"],                # Hedef tarihi geçmiş, bitmemiş adım
             "son_etkinlik": satir["son_etkinlik"] or None,   # '' ise "henüz yok"
         })
 
@@ -1451,7 +1503,7 @@ def sinif_indir(sinif_id):
     yazici = csv.writer(bellek, delimiter=";")
     yazici.writerow(["Öğrenci", "Yol haritası", "Tamamlanan adım", "Toplam adım",
                      "İlerleme (%)", "İpucu", "Commit", "Yapay zekâ (7 gün)", "Son etkinlik",
-                     "Sınıfa katılma"])
+                     "Sınıfa katılma", "Geciken adım"])
     # Not: Kullanıcı adları sadece harf/rakam/nokta/alt çizgi içerebildiği için
     # Excel'in formül sanabileceği (=, +, -, @ ile başlayan) bir değer oluşamaz.
     for satir in veritabani.sinif_ozeti(sinif_id):
@@ -1466,6 +1518,7 @@ def sinif_indir(sinif_id):
             satir["yz_hafta"],
             tarih_bicimle(satir["son_etkinlik"]) if satir["son_etkinlik"] else "",
             tarih_bicimle(satir["katilma_zamani"]),
+            satir["geciken_adim"],
         ])
 
     # "﻿" (BOM): Excel'e dosyanın UTF-8 olduğunu söyler; yoksa ğ, ş, ı bozuk görünür
@@ -1583,6 +1636,55 @@ def yorum_yaz(ogrenci_id, adim_id):
     veritabani.yorum_ekle(adim_id, aktif_id(), metin)
     flash("Yorumun öğrenciye iletildi.", "bilgi")
     return redirect(geri)
+
+
+@app.route("/ogretmen/ogrenci/<int:ogrenci_id>/adim/<int:adim_id>/hedef", methods=["POST"])
+@ogretmen_gerekli
+def hedef_tarih_koy(ogrenci_id, adim_id):
+    """
+    POST: Öğretmen öğrencinin bir adımına hedef tarih koyar (boş gönderilirse hedefi kaldırır).
+    Tarayıcının tarih kutusu (<input type="date">) değeri "2026-11-21" biçiminde gönderir;
+    yine de formdan gelene güvenmeyip date.fromisoformat ile gerçekten tarih mi diye bakıyoruz.
+    """
+    if not veritabani.ogretmen_gorebilir_mi(aktif_id(), ogrenci_id):
+        abort(404)
+    adim = veritabani.adim_getir(adim_id, ogrenci_id)     # Adım gerçekten bu öğrencinin mi?
+    if adim is None:
+        abort(404)
+    geri = url_for("ogrenci_yol_haritasi", ogrenci_id=ogrenci_id,
+                   harita_id=adim["yol_haritasi_id"]) + f"#adim-{adim_id}"
+
+    metin = request.form.get("tarih", "").strip()
+    if not metin:
+        veritabani.hedef_tarih_ayarla(adim_id, None)
+        flash("Hedef tarih kaldırıldı.", "bilgi")
+        return redirect(geri)
+    try:
+        tarih = date.fromisoformat(metin)
+    except ValueError:
+        flash("Tarihi anlayamadım.", "hata")
+        return redirect(geri)
+    bugun = date.today()
+    if not bugun - timedelta(days=365) <= tarih <= bugun + timedelta(days=365):
+        flash("Hedef tarih bugünden en fazla bir yıl önce ya da sonra olabilir.", "hata")
+        return redirect(geri)
+    veritabani.hedef_tarih_ayarla(adim_id, tarih.isoformat())
+    flash(f"Hedef tarih {tarih.strftime('%d.%m.%Y')} olarak kaydedildi. Öğrenci ana sayfasında görecek.", "bilgi")
+    return redirect(geri)
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/ogrenci/<int:ogrenci_id>/cikar", methods=["POST"])
+@ogretmen_gerekli
+def siniftan_cikar(sinif_id, ogrenci_id):
+    """
+    POST: Öğretmen bir öğrenciyi sınıfından çıkarır (ör. yanlışlıkla katılan biri).
+    Öğrencinin yol haritalarına DOKUNULMAZ; sadece öğretmen artık onu göremez.
+    """
+    if veritabani.sinif_getir(sinif_id, aktif_id()) is None:
+        abort(404)                          # Başka öğretmenin sınıfından kimse çıkarılamaz
+    veritabani.siniftan_ayril(ogrenci_id, sinif_id)
+    flash("Öğrenci sınıftan çıkarıldı. Yol haritaları silinmedi; isterse kodla yeniden katılabilir.", "bilgi")
+    return redirect(url_for("sinif_detay", sinif_id=sinif_id))
 
 
 @app.route("/ogretmen/yorum/<int:yorum_id>/sil", methods=["POST"])

@@ -472,6 +472,8 @@ def hazirla():
         sutun_yoksa_ekle(baglanti, "kullanicilar", "son_okunan_duyuru", "INTEGER NOT NULL DEFAULT 0")
         # Öğretmen şifreyi sıfırladıysa 1: öğrenci girince önce yeni şifre belirlemek zorunda
         sutun_yoksa_ekle(baglanti, "kullanicilar", "gecici_sifre", "INTEGER NOT NULL DEFAULT 0")
+        # Öğretmenin bir adım için koyduğu hedef tarih ("2026-11-21"); yoksa boş (NULL)
+        sutun_yoksa_ekle(baglanti, "adimlar", "hedef_tarih", "TEXT")
 
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
@@ -1069,11 +1071,17 @@ def sinif_ozeti(sinif_id):
         # f-string: {BUYUGU} yerine SQLite'ta MAX, PostgreSQL'de GREATEST yazılır
         # Son 7 günün başı (bugün dahil 7 gün): yapay zekâ kullanımını saymak için
         hafta_basi = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
+        bugun = datetime.now().strftime("%Y-%m-%d")
         return baglanti.execute(f"""
             SELECT k.id, k.kullanici_adi, u.katilma_zamani,
                    -- Son 7 günde yapay zekâya gönderdiği istek sayısı (yz_kullanimi tablosundan)
                    (SELECT COALESCE(SUM(z.sayi), 0) FROM yz_kullanimi z
                      WHERE z.kullanici_id = k.id AND z.gun >= ?)        AS yz_hafta,
+                   -- Hedef tarihi geçmiş ama bitmemiş adım sayısı
+                   (SELECT COUNT(*) FROM adimlar a
+                     JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                     WHERE y.kullanici_id = k.id AND a.tamamlandi = 0
+                       AND a.hedef_tarih < ?)                           AS geciken_adim,
                    (SELECT COUNT(*) FROM yol_haritalari y
                      WHERE y.kullanici_id = k.id)                       AS harita_sayisi,
                    (SELECT COUNT(*) FROM adimlar a
@@ -1109,7 +1117,7 @@ def sinif_ozeti(sinif_id):
             JOIN kullanicilar  AS k ON k.id = u.ogrenci_id
             WHERE u.sinif_id = ?
             ORDER BY k.kullanici_adi
-        """, (hafta_basi, sinif_id)).fetchall()     # Sıra önemli: ? işaretleri soldan sağa doldurulur
+        """, (hafta_basi, bugun, sinif_id)).fetchall()   # Sıra önemli: ? işaretleri soldan sağa doldurulur
     finally:
         baglanti.close()
 
@@ -1964,5 +1972,60 @@ def hesap_sil(kullanici_id, sifre):
         baglanti.execute("DELETE FROM kullanicilar WHERE id = :k", {"k": kullanici_id})
         baglanti.commit()
         return True
+    finally:
+        baglanti.close()
+
+# ---------------------------------------------------------------------------
+# 18) HEDEF TARİHLER VE HAFTALIK ÖZET
+# ---------------------------------------------------------------------------
+
+def hedef_tarih_ayarla(adim_id, tarih):
+    """Adımın hedef tarihini ayarlar ("2026-11-21"); tarih None ise hedefi kaldırır."""
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE adimlar SET hedef_tarih = ? WHERE id = ?", (tarih, adim_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def yaklasan_hedefler(kullanici_id, son_gun):
+    """
+    Öğrencinin bitmemiş ve hedef tarihi 'son_gun'e kadar olan adımları (gecikmişler dahil),
+    en yakın tarih en üstte. Ana sayfadaki "Yaklaşan hedefler" kartı için.
+    "2026-11-20" < "2026-11-21": Tarihleri YYYY-AA-GG biçiminde metin olarak sakladığımız
+    için metin karşılaştırması tarih karşılaştırmasıyla aynı sonucu verir.
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT a.id AS adim_id, a.baslik, a.sira, a.hedef_tarih, y.id AS harita_id, y.proje
+            FROM adimlar AS a
+            JOIN yol_haritalari AS y ON y.id = a.yol_haritasi_id
+            WHERE y.kullanici_id = ? AND a.tamamlandi = 0
+              AND a.hedef_tarih IS NOT NULL AND a.hedef_tarih <= ?
+            ORDER BY a.hedef_tarih, a.sira
+        """, (kullanici_id, son_gun)).fetchall()
+    finally:
+        baglanti.close()
+
+
+def haftalik_ozet(kullanici_id, bu_hafta_basi, gecen_hafta_basi):
+    """
+    Bu hafta ve geçen hafta kaç adım bitirdi? (Hafta pazartesi başlar.)
+    Haftanın başı "2026-11-16" ise "2026-11-16 00:00:00" ve sonrası bu haftadır.
+    """
+    baglanti = baglan()
+    try:
+        satir = baglanti.execute("""
+            SELECT
+              (SELECT COUNT(*) FROM adimlar a JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                WHERE y.kullanici_id = :k AND a.tamamlandi = 1
+                  AND a.tamamlanma_zamani >= :bu)                               AS bu_hafta,
+              (SELECT COUNT(*) FROM adimlar a JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                WHERE y.kullanici_id = :k AND a.tamamlandi = 1
+                  AND a.tamamlanma_zamani >= :gecen AND a.tamamlanma_zamani < :bu) AS gecen_hafta
+        """, {"k": kullanici_id, "bu": bu_hafta_basi, "gecen": gecen_hafta_basi}).fetchone()
+        return {"bu_hafta": satir["bu_hafta"], "gecen_hafta": satir["gecen_hafta"]}
     finally:
         baglanti.close()

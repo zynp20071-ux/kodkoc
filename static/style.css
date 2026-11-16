@@ -1142,3 +1142,27 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 /* Tehlikeli işlem: başlık hata rengiyle, dikkat çeksin */
 .tehlikeli-bolum > summary { color: var(--hata-yazi); }
 .yz-hakki { margin-top: 10px; }
+/* --- Hedef tarihler: adımda, ana sayfada ve öğretmenin tablosunda küçük etiket --- */
+.hedef-etiketi {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin: 4px 0 8px;
+  background: var(--alan);
+  color: var(--yumusak);
+  border: 1px solid var(--cizgi);
+}
+.hedef-gecikti { background: var(--hata-zemin); color: var(--hata-yazi); border-color: var(--hata-yazi); }
+.hedef-yaklasiyor { background: var(--vurgu-acik); color: var(--vurgu-koyu); border-color: var(--vurgu); }
+.hedef-tamam { background: var(--yesil-acik); color: var(--yesil-yazi); border-color: var(--yesil); }
+.tablo .hedef-etiketi { margin: 0; }
+
+.hedef-karti ul { list-style: none; padding: 0; margin: 8px 0 0; }
+.hedef-karti li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--cizgi); }
+.hedef-karti li:first-child { border-top: none; }
+.hedef-karti .hedef-etiketi { margin: 0; }
+
+.haftalik-ozet { color: var(--yumusak); margin: 0 0 16px; }
+.tablo button.sil { margin-top: 0; padding: 0; font-size: 14px; }
