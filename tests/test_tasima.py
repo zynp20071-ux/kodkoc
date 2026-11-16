@@ -66,6 +66,24 @@ def test_kopan_baglanti_havuzu_bosaltmaz():
     assert veritabani.kullanici_sayisi() == 0      # Havuz hâlâ çalışıyor
 
 
+def test_kopyalanan_surec_kendi_havuzunu_acar(monkeypatch):
+    """
+    Canlıda yaşanan ikinci hata: gunicorn programı yükleyip kendini işçilere kopyalıyor (fork);
+    kopyadaki havuz hiç bağlantı açamıyordu. Windows'ta fork olmadığı için süreç numarasını
+    değiştirerek "başka bir süreçteyiz" durumunu taklit ediyoruz.
+    """
+    eski_havuz = veritabani._postgres_havuzu()
+    monkeypatch.setattr(veritabani.os, "getpid", lambda: -12345)     # Artık "işçi" süreçteyiz
+    yeni_havuz = veritabani._postgres_havuzu()
+    assert yeni_havuz is not eski_havuz                              # İşçi kendi havuzunu açtı
+    assert veritabani.kullanici_sayisi() == 0                       # ve onunla sorgu çalışıyor
+    assert veritabani._postgres_havuzu() is yeni_havuz              # Aynı süreçte tekrar açılmaz
+    # Temizlik: iki havuzu da kapat, sonraki test yenisini açsın
+    eski_havuz.close()
+    yeni_havuz.close()
+    monkeypatch.setattr(veritabani, "_havuz", None)
+
+
 def test_dolu_veritabanina_tasima_yapilmaz(eski_db):
     veritabani.kullanici_ekle("hoca", "sifre123", "ogretmen")
     with pytest.raises(SystemExit):

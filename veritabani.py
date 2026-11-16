@@ -169,6 +169,7 @@ def postgres_sql(sorgu):
 
 
 _havuz = None
+_havuz_sureci = None          # Havuzu hangi süreç (process) açtı? (os.getpid() değeri)
 
 
 def _postgres_havuzu():
@@ -176,9 +177,17 @@ def _postgres_havuzu():
     Bağlantı havuzu (connection pool): Uzaktaki sunucuya her sorguda yeniden
     bağlanmak yavaştır. Havuz birkaç bağlantıyı açık tutar ve tekrar tekrar kullanır.
     İlk ihtiyaç anında oluşturulur.
+
+    DİKKAT, "fork": Sunucuda gunicorn önce programı bir kez yükler (havuz burada açılır),
+    sonra kendini işçilere (worker) KOPYALAR. Havuz yeni bağlantıları arka plandaki
+    yardımcı iş parçacıklarıyla (thread) açar ve bunlar kopyaya taşınmaz. Kopyadaki havuz
+    bağlantı açacak kimse olmadığı için sonsuza kadar bekler. Canlıda tam olarak bu yaşandı.
+    Çözüm: Havuzu açan sürecin numarasını tutuyoruz; başka bir süreçteysek yenisini açıyoruz.
+    (Eski havuzu kapatmıyoruz: bağlantıları ana süreçle ortak, kapatırsak onunkiler de kopar.)
     """
-    global _havuz
-    if _havuz is None:
+    global _havuz, _havuz_sureci
+    if _havuz is None or _havuz_sureci != os.getpid():
+        _havuz_sureci = os.getpid()
         _havuz = ConnectionPool(
             VERITABANI_URL, min_size=1, max_size=5, open=True,
             kwargs={"row_factory": _satir_fabrikasi},
@@ -189,8 +198,14 @@ def _postgres_havuzu():
             max_lifetime=600,                        # Hiçbir bağlantı 10 dakikadan uzun yaşamasın
             timeout=15,                              # Bağlantı alınamazsa 30 değil 15 sn sonra hata ver
         )
-        atexit.register(_havuz.close)        # Program kapanırken bağlantıları düzgünce kapat
     return _havuz
+
+
+@atexit.register
+def _havuzu_kapat():
+    """Program kapanırken bağlantıları düzgünce kapat (sadece havuzu bu süreç açtıysa)."""
+    if _havuz is not None and _havuz_sureci == os.getpid():
+        _havuz.close()
 
 
 class Baglanti:
