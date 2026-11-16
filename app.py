@@ -444,7 +444,10 @@ def saglik():
         app.logger.error("Sağlık kontrolü: veritabanına ulaşılamadı (%s). Teşhis: %s",
                          type(hata).__name__, veritabani.baglanti_teshisi())
         return "veritabani yok", 503, {"Content-Type": "text/plain; charset=utf-8"}
-    return "tamam", 200, {"Content-Type": "text/plain; charset=utf-8"}
+    # Hangi sürüm çalışıyor? Render, çalışan commit'in numarasını RENDER_GIT_COMMIT ayarıyla verir.
+    # Cevaba ekliyoruz: "yeni sürüm gerçekten yayına girdi mi?" sorusu tek istekle cevaplanır.
+    surum = os.getenv("RENDER_GIT_COMMIT", "yerel")[:7]
+    return "tamam", 200, {"Content-Type": "text/plain; charset=utf-8", "X-KodKoc-Surum": surum}
 
 
 @app.errorhandler(500)

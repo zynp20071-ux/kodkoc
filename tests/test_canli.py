@@ -101,6 +101,12 @@ def test_saglik_kontrolu_giris_istemez(istemci):
     assert cevap.status_code == 200 and cevap.text == "tamam"
 
 
+def test_saglik_kontrolu_calisan_surumu_soyler(istemci, monkeypatch):
+    assert istemci.get("/saglik").headers["X-KodKoc-Surum"] == "yerel"
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "f7ed997b75f45646dee6b362fdec8d91ee070e23")
+    assert istemci.get("/saglik").headers["X-KodKoc-Surum"] == "f7ed997"
+
+
 def test_saglik_kontrolu_veritabani_yoksa_503_ve_log(istemci, monkeypatch, caplog):
     def bozuk():
         raise RuntimeError("baglanamadi")
