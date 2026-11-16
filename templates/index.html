@@ -67,6 +67,10 @@
         <button type="submit" id="gonder">Yol haritamı çıkar</button>
         <p class="bekle" id="bekle">KodKoç düşünüyor, bu birkaç saniye sürebilir…</p>
       </form>
+      {% if yz_sinir is defined %}
+      <!-- Kalan günlük hak: yol haritası, fikir, ipucu, inceleme ve soru aynı haktan düşer -->
+      <p class="ipucu-yazi yz-hakki">Bugün kalan yapay zekâ hakkın: <strong>{{ yz_kalan }} / {{ yz_sinir }}</strong></p>
+      {% endif %}
 
       <!-- Proje fikri: "Ne yapacağımı bilmiyorum" diyen öğrenci için -->
       <details class="fikir-kutusu" {% if fikirler or fikir_hatasi %}open{% endif %}>

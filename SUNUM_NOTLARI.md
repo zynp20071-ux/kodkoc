@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. 212 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme. 228 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -364,7 +364,11 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | SQLite / PostgreSQL seçimi | `veritabani.py` → `POSTGRES`, `Baglanti` sınıfı, `postgres_sql()` |
 | Veri taşıma | `tasima.py` |
 | Sunucu kurulumu | `render.yaml`, `Procfile`, `.env.example`, `/saglik` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py` |
+| Kalan yapay zekâ hakkı, sınıfın 7 günlük kullanımı | `app.py` → `kalan_yz_hakki()`; `veritabani.py` → `sinif_ozeti()` (`yz_hafta`) |
+| Öğretmenin şifre sıfırlaması | `app.py` → `ogrenci_sifre_sifirla()`, `kullaniciyi_yukle()` (zorunlu şifre değiştirme); `veritabani.py` → `gecici_sifre_ver()` |
+| Hesap silme | `app.py` → `hesabi_sil()`; `veritabani.py` → `hesap_sil()` |
+| Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -403,6 +407,19 @@ Tarayıcıya "bu siteyi nasıl korumalısın" diyor. `Content-Security-Policy` s
 
 **ProxyFix neden gerekli?**
 Render'da HTTPS'i önündeki ara sunucu çözüyor ve isteği uygulamaya düz http olarak iletiyor. ProxyFix, ara sunucunun eklediği başlıkları okuyup Flask'a "aslında bağlantı HTTPS, ziyaretçinin adresi bu" diyor. Sadece canlıda açık; yerelde bu başlıklara güvenmek yanlış olurdu, çünkü herkes istediği başlığı gönderebilir.
+
+**Canlıya alırken sorun çıktı mı?** (Bunu anlatmak iyi bir izlenim bırakır)
+Evet, iki tane. Bilgisayarımda bütün testler geçiyordu ama sunucuda site açılmadı; her sayfa 502 verdi. Render'ın loglarında `PoolTimeout: couldn't get a connection` gördüm. Önce sorunun yanlış veritabanı adresi olduğunu düşündüm. Bunu ayırt etmek için `/saglik` adresine bir **teşhis** ekledim: havuz bağlantı veremezse havuzu kullanmadan doğrudan bağlanmayı deneyip asıl hatayı loga yazıyor. Log `Teşhis: None` dedi, yani doğrudan bağlantı **çalışıyordu**; sorun benim havuzumdaydı.
+- **Asıl sebep (fork):** Render, gunicorn'u `--preload` ile çalıştırıyor. Program önce bir kez yükleniyor (havuz orada açılıyor), sonra kendini işçilere kopyalıyor. Havuzun bağlantı açan arka plan iş parçacıkları (thread) kopyaya taşınmıyor; işçideki havuz bağlantı açacak kimse olmadığı için sonsuza kadar bekliyordu. Windows'ta fork olmadığı için bilgisayarımda hiç görünmedi. Çözüm: havuz hangi süreçte (`os.getpid()`) açıldığını hatırlıyor, başka süreçte kullanılırsa yenisini açıyor.
+- **Yolda bulduğum ikinci hata:** Bağlantı kopmuşsa `rollback` hata veriyor ve bağlantı havuza geri **verilmiyordu**; birkaç kopukluktan sonra havuz boşalırdı. `try/finally` ile düzelttim.
+- İkisi için de **önce hatayı yakalayan test** yazdım. Eski kodda başarısız, yeni kodda geçiyor. Fork'u Windows'ta test edemediğim için testte `os.getpid`'i değiştirip "başka süreçteyiz" durumunu taklit ettim.
+- Öğrendiğim ders: "bende çalışıyor" yetmez; çalışma ortamı (işletim sistemi, sunucunun nasıl başlattığı) farklı olunca farklı hatalar çıkıyor. Loglar ve teşhis olmadan bulamazdım.
+
+**Öğrenci şifresini unutursa?**
+E-posta sistemi yok; okulda şifresini unutan öğrenci zaten öğretmenine gidiyor. Öğretmen, **sadece kendi sınıfındaki öğrenciler** için geçici şifre üretebiliyor (başka bir öğretmenin şifresini sıfırlayamaz). Geçici şifre ekranda **bir kez** gösteriliyor; veritabanına yine sadece hash'i yazılıyor, sayfa tarayıcı önbelleğine alınmıyor (`Cache-Control: no-store`). Geçici şifreyi öğretmen de bildiği için öğrenci girince `gecici_sifre` işareti yüzünden kendi şifresini belirlemeden hiçbir sayfayı açamıyor (`before_request` içinde kontrol).
+
+**Kullanıcı hesabını silebiliyor mu?**
+Evet, profil sayfasından. Kişisel verinin sahibi kullanıcı; istediği zaman silebilmeli. Yanlışlıkla olmasın diye şifre ve "SİL" yazması isteniyor. Bütün veriler (yol haritaları, ipuçları, sorular, sınıf üyelikleri, yapay zekâ sayacı) **tek işlemde** siliniyor; yarıda hata olursa hiçbiri silinmiyor. Öğretmense açtığı sınıflar ve yazdığı yorumlar da gidiyor. Sıra yabancı anahtarlar yüzünden önemli: önce çocuk kayıtlar, en son kullanıcı. (Küçük bir tuzak: Python'da `"sil".upper()` → `"SIL"` veriyor, Türkçe İ'yi bilmiyor; iki yazımı da kabul ediyorum.)
 
 **Saatler neden önemli?**
 Sunucular genelde dünya saatiyle (UTC) çalışıyor; Türkiye 3 saat ileride. "Bugün"ü yanlış hesaplasaydık gece 00:00-03:00 arası yapılan çalışmalar önceki güne yazılır, seri bozulurdu. Program açılırken saat dilimini `Europe/Istanbul` yapıyorum.

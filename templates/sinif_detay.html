@@ -105,6 +105,7 @@
             <th>İlerleme</th>
             <th>İpucu</th>
             <th title="GitHub'dan çekilen commit sayısı">Commit</th>
+            <th title="Son 7 günde yapay zekâya gönderdiği istek (yol haritası, ipucu, soru, inceleme, fikir)">Yapay zekâ (7 gün)</th>
             <th>Son etkinlik</th>
           </tr>
         </thead>
@@ -123,6 +124,7 @@
             </td>
             <td>{{ o.ipucu_sayisi }}</td>
             <td>{{ o.commit_sayisi }}</td>
+            <td>{{ o.yz_hafta }}</td>
             <td>{{ o.son_etkinlik | tarih if o.son_etkinlik else '—' }}</td>
           </tr>
           {% endfor %}

@@ -470,6 +470,8 @@ def hazirla():
         sutun_yoksa_ekle(baglanti, "adimlar", "kendi_eklendi", "INTEGER NOT NULL DEFAULT 0")
         # Öğrencinin gördüğü en son duyurunun id'si. Bundan büyük id'li duyurular "yeni" sayılır.
         sutun_yoksa_ekle(baglanti, "kullanicilar", "son_okunan_duyuru", "INTEGER NOT NULL DEFAULT 0")
+        # Öğretmen şifreyi sıfırladıysa 1: öğrenci girince önce yeni şifre belirlemek zorunda
+        sutun_yoksa_ekle(baglanti, "kullanicilar", "gecici_sifre", "INTEGER NOT NULL DEFAULT 0")
 
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
@@ -884,7 +886,7 @@ def kullanici_getir(kullanici_id):
     baglanti = baglan()
     try:
         return baglanti.execute(
-            "SELECT id, kullanici_adi, rol FROM kullanicilar WHERE id = ?", (kullanici_id,)
+            "SELECT id, kullanici_adi, rol, gecici_sifre FROM kullanicilar WHERE id = ?", (kullanici_id,)
         ).fetchone()
     finally:
         baglanti.close()
@@ -1065,8 +1067,13 @@ def sinif_ozeti(sinif_id):
     baglanti = baglan()
     try:
         # f-string: {BUYUGU} yerine SQLite'ta MAX, PostgreSQL'de GREATEST yazılır
+        # Son 7 günün başı (bugün dahil 7 gün): yapay zekâ kullanımını saymak için
+        hafta_basi = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
         return baglanti.execute(f"""
             SELECT k.id, k.kullanici_adi, u.katilma_zamani,
+                   -- Son 7 günde yapay zekâya gönderdiği istek sayısı (yz_kullanimi tablosundan)
+                   (SELECT COALESCE(SUM(z.sayi), 0) FROM yz_kullanimi z
+                     WHERE z.kullanici_id = k.id AND z.gun >= ?)        AS yz_hafta,
                    (SELECT COUNT(*) FROM yol_haritalari y
                      WHERE y.kullanici_id = k.id)                       AS harita_sayisi,
                    (SELECT COUNT(*) FROM adimlar a
@@ -1102,7 +1109,7 @@ def sinif_ozeti(sinif_id):
             JOIN kullanicilar  AS k ON k.id = u.ogrenci_id
             WHERE u.sinif_id = ?
             ORDER BY k.kullanici_adi
-        """, (sinif_id,)).fetchall()
+        """, (hafta_basi, sinif_id)).fetchall()     # Sıra önemli: ? işaretleri soldan sağa doldurulur
     finally:
         baglanti.close()
 
@@ -1634,7 +1641,8 @@ def sifre_degistir(kullanici_id, eski_sifre, yeni_sifre):
                                  (kullanici_id,)).fetchone()
         if satir is None or not check_password_hash(satir["sifre_hash"], eski_sifre):
             return False
-        baglanti.execute("UPDATE kullanicilar SET sifre_hash = ? WHERE id = ?",
+        # gecici_sifre = 0: Öğretmenin verdiği geçici şifre varsa artık geçerli değil
+        baglanti.execute("UPDATE kullanicilar SET sifre_hash = ?, gecici_sifre = 0 WHERE id = ?",
                          (generate_password_hash(yeni_sifre), kullanici_id))
         baglanti.commit()
         return True
@@ -1888,5 +1896,73 @@ def yanlis_girisleri_temizle(kullanici_adi):
         baglanti.execute("DELETE FROM giris_denemeleri WHERE LOWER(kullanici_adi) = LOWER(?)",
                          (kullanici_adi,))
         baglanti.commit()
+    finally:
+        baglanti.close()
+
+# ---------------------------------------------------------------------------
+# 17) ÖĞRETMENİN ŞİFRE SIFIRLAMASI VE HESAP SİLME
+# ---------------------------------------------------------------------------
+
+# Geçici şifrede karıştırılabilecek karakterler yok (0/o, 1/l/i gibi); öğretmen tahtaya yazabilsin
+GECICI_SIFRE_KARAKTERLERI = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def gecici_sifre_ver(ogrenci_id):
+    """
+    Öğrenciye rastgele 8 karakterlik geçici şifre verir ve şifreyi döndürür.
+    gecici_sifre = 1: Öğrenci bu şifreyle girince önce kendi şifresini belirlemek zorunda.
+    Öğrencinin yanlış şifre denemeleri de silinir (kilitlendiyse açılsın).
+    (Öğretmenin bu öğrenciyi görme yetkisi app.py'de kontrol edilir.)
+    """
+    sifre = "".join(secrets.choice(GECICI_SIFRE_KARAKTERLERI) for _ in range(8))
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE kullanicilar SET sifre_hash = ?, gecici_sifre = 1 WHERE id = ?",
+                         (generate_password_hash(sifre), ogrenci_id))
+        baglanti.execute("""DELETE FROM giris_denemeleri WHERE LOWER(kullanici_adi) =
+                            (SELECT LOWER(kullanici_adi) FROM kullanicilar WHERE id = ?)""", (ogrenci_id,))
+        baglanti.commit()
+        return sifre
+    finally:
+        baglanti.close()
+
+
+def hesap_sil(kullanici_id, sifre):
+    """
+    Kullanıcıyı ve ona ait HER ŞEYİ siler; şifre yanlışsa hiçbir şey yapmaz ve False döner.
+    Hepsi tek bir işlemde (transaction): yarıda bir hata olursa hiçbiri silinmez.
+    Sıra önemli: önce "çocuk" kayıtlar (ipuçları, adımlar...), en son kullanıcının kendisi.
+    """
+    baglanti = baglan()
+    try:
+        satir = baglanti.execute("SELECT kullanici_adi, sifre_hash FROM kullanicilar WHERE id = ?",
+                                 (kullanici_id,)).fetchone()
+        if satir is None or not check_password_hash(satir["sifre_hash"], sifre):
+            return False
+
+        # 1) Kullanıcının yol haritalarına bağlı her şey
+        haritalari = "SELECT id FROM yol_haritalari WHERE kullanici_id = :k"
+        adimlari = f"SELECT id FROM adimlar WHERE yol_haritasi_id IN ({haritalari})"
+        for tablo in ("ipuclari", "ogretmen_yorumlari", "kod_incelemeleri", "koc_sorulari"):
+            baglanti.execute(f"DELETE FROM {tablo} WHERE adim_id IN ({adimlari})", {"k": kullanici_id})
+        baglanti.execute(f"DELETE FROM commitler WHERE yol_haritasi_id IN ({haritalari})", {"k": kullanici_id})
+        baglanti.execute(f"DELETE FROM adimlar WHERE yol_haritasi_id IN ({haritalari})", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM yol_haritalari WHERE kullanici_id = :k", {"k": kullanici_id})
+
+        # 2) Öğretmense: başkalarına yazdığı yorumlar ve açtığı sınıflar (duyuruları, üyelikleriyle)
+        baglanti.execute("DELETE FROM ogretmen_yorumlari WHERE ogretmen_id = :k", {"k": kullanici_id})
+        siniflari = "SELECT id FROM siniflar WHERE ogretmen_id = :k"
+        baglanti.execute(f"DELETE FROM duyurular WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
+        baglanti.execute(f"DELETE FROM sinif_uyeleri WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM siniflar WHERE ogretmen_id = :k", {"k": kullanici_id})
+
+        # 3) Üyelikler, yapay zekâ sayacı, giriş denemeleri ve en son kullanıcı
+        baglanti.execute("DELETE FROM sinif_uyeleri WHERE ogrenci_id = :k", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM yz_kullanimi WHERE kullanici_id = :k", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM giris_denemeleri WHERE LOWER(kullanici_adi) = LOWER(:ad)",
+                         {"ad": satir["kullanici_adi"]})
+        baglanti.execute("DELETE FROM kullanicilar WHERE id = :k", {"k": kullanici_id})
+        baglanti.commit()
+        return True
     finally:
         baglanti.close()

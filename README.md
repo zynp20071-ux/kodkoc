@@ -173,4 +173,5 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 8. hafta: Otomatik testler (pytest)
 - [x] 8. hafta: Öğretmen paneli (sınıflar, katılım kodu, ilerleme tablosu)
 - [x] 9. hafta: Canlıya hazırlık (canlı mod, öğretmen davet kodu, günlük yapay zekâ sınırı, şifre deneme sınırı)
-- [ ] 9. hafta: Sunucuya yükleme ve veritabanı bağlantısı
+- [x] 9. hafta: Sunucuya yükleme (Render) ve veritabanı bağlantısı (Neon PostgreSQL): https://kodkoc.onrender.com
+- [x] 9. hafta: Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme

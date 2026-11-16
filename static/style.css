@@ -1134,3 +1134,11 @@ button.cikis:hover { color: var(--vurgu); background: none; }
   a { color: inherit; text-decoration: none; }
   .kapsayici { max-width: none; padding: 0; }
 }
+
+/* --- 9. hafta: açılır profil bölümleri (hesap silme, öğretmenin şifre sıfırlaması) --- */
+.profil-bolumu > summary { cursor: pointer; font-weight: 700; color: var(--vurgu); }
+.profil-bolumu > summary:hover { text-decoration: underline; }
+.profil-bolumu[open] > summary { margin-bottom: 8px; }
+/* Tehlikeli işlem: başlık hata rengiyle, dikkat çeksin */
+.tehlikeli-bolum > summary { color: var(--hata-yazi); }
+.yz-hakki { margin-top: 10px; }

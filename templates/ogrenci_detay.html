@@ -8,6 +8,15 @@
     <h1>{{ ogrenci.kullanici_adi }}</h1>
     <p class="aciklama">Öğrencinin yol haritaları. Birine tıklayıp adımlarını, aldığı ipuçlarını ve notlarını görebilirsin.</p>
 
+    {% if gecici_sifre %}
+    <!-- Geçici şifre sadece bu cevapta, bir kez gösterilir; hiçbir yerde açık metin olarak saklanmaz -->
+    <section class="kod-kutusu-buyuk" role="status">
+      <span>{{ ogrenci.kullanici_adi }} için geçici şifre</span>
+      <strong>{{ gecici_sifre }}</strong>
+      <span class="ipucu-yazi">Öğrenciye söyle. Bu şifreyle girince kendi şifresini belirlemesi istenecek. Sayfadan çıkınca bu şifreyi bir daha göremezsin.</span>
+    </section>
+    {% endif %}
+
     {% if haritalar %}
     <ul class="gecmis-listesi">
       {% for harita in haritalar %}
@@ -35,4 +44,18 @@
     {% endif %}
 
     {% include "_rozetler.html" %}
+
+    {% if ogrenci.rol == 'ogrenci' %}
+    <!-- Şifre sıfırlama: e-posta sistemi yok; şifresini unutan öğrenci öğretmenine gelir -->
+    <details class="kart profil-bolumu">
+      <summary>Öğrenci şifresini unuttu mu?</summary>
+      <p class="aciklama">Geçici bir şifre üretilir ve sana bir kez gösterilir. Öğrencinin eski şifresi artık çalışmaz;
+        geçici şifreyle girince kendi şifresini belirlemesi istenir.</p>
+      <form method="post" action="{{ url_for('ogrenci_sifre_sifirla', ogrenci_id=ogrenci.id) }}"
+            onsubmit="return confirm('{{ ogrenci.kullanici_adi }} için geçici şifre üretilsin mi? Eski şifresi çalışmayacak.');">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <button type="submit" class="ikincil">Geçici şifre üret</button>
+      </form>
+    </details>
+    {% endif %}
 {% endblock %}

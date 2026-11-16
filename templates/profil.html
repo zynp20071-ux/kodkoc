@@ -49,9 +49,15 @@
       <p class="ipucu-yazi">Etkinlik: yol haritası çıkarmak, adım bitirmek, ipucu almak, koça soru sormak, kod incelettirmek.</p>
     </section>
 
+    <p class="ipucu-yazi">Bugün kalan yapay zekâ hakkın: <strong>{{ yz_kalan }} / {{ yz_sinir }}</strong>
+      (yol haritası, proje fikri, ipucu, kod inceleme ve koça soru aynı haktan düşer; her gün yenilenir).</p>
+
     <!-- Şifre değiştirme -->
-    <section class="kart profil-bolumu">
+    <section class="kart profil-bolumu" id="sifre">
       <h2 class="ara-baslik">Şifremi değiştir</h2>
+      {% if g.kullanici.gecici_sifre %}
+      <p class="hata">Öğretmeninin verdiği geçici şifreyle girdin. "Şu anki şifren" kutusuna o geçici şifreyi yaz, sonra kendi şifreni belirle.</p>
+      {% endif %}
       <form method="post" action="{{ url_for('sifre_degistir') }}">
         <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
         <!-- autocomplete: tarayıcının şifre yöneticisi hangi alanın ne olduğunu anlasın -->
@@ -64,4 +70,24 @@
         <button type="submit">Şifreyi değiştir</button>
       </form>
     </section>
+
+    {% if not g.kullanici.gecici_sifre %}
+    <!-- Hesabı silme: kişisel verilerin sahibi kullanıcıdır. <details>: tıklayınca açılır,
+         böylece tehlikeli düğme sayfada hep göz önünde durmaz. -->
+    <details class="kart profil-bolumu tehlikeli-bolum" id="hesap-sil">
+      <summary>Hesabımı sil</summary>
+      <p class="aciklama">Hesabın, bütün yol haritaların, ipuçların, notların ve sınıf üyeliklerin <strong>kalıcı olarak</strong> silinir.
+        {% if bilgi.rol == 'ogretmen' %}Açtığın sınıflar, duyuruların ve öğrencilere yazdığın yorumlar da silinir.{% endif %}
+        Bu işlem geri alınamaz.</p>
+      <form method="post" action="{{ url_for('hesabi_sil') }}"
+            onsubmit="return confirm('Hesabın ve bütün verilerin kalıcı olarak silinecek. Emin misin?');">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="sil-sifre">Şifren</label>
+        <input type="password" id="sil-sifre" name="sifre" autocomplete="current-password" required>
+        <label for="sil-onay">Onaylamak için büyük harflerle <strong>SİL</strong> yaz</label>
+        <input type="text" id="sil-onay" name="onay" autocomplete="off" required>
+        <button type="submit" class="sil">Hesabımı kalıcı olarak sil</button>
+      </form>
+    </details>
+    {% endif %}
 {% endblock %}

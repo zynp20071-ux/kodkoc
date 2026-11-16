@@ -87,7 +87,8 @@ def test_sinif_csv_olarak_indirilir(sinif):
     satirlar = list(csv.reader(io.StringIO(veri.decode("utf-8-sig")), delimiter=";"))
     assert satirlar[0][0] == "Öğrenci" and satirlar[0][4] == "İlerleme (%)"
     assert satirlar[1][:7] == ["ali", "1", "1", "4", "25", "1", "0"]
-    assert re.match(r"\d\d\.\d\d\.\d{4} \d\d:\d\d", satirlar[1][7])
+    assert satirlar[0][7] == "Yapay zekâ (7 gün)" and satirlar[1][7] == "2"   # 1 yol haritası + 1 ipucu
+    assert re.match(r"\d\d\.\d\d\.\d{4} \d\d:\d\d", satirlar[1][8])
 
 
 def test_csv_sadece_kendi_sinifinin_ogretmeni_indirir(kayit_ol, sinif):

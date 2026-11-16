@@ -34,7 +34,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 
 import markdown                      # Yapay zekânın cevabındaki ** ve ### işaretlerini HTML'e çevirir
-from flask import (Flask, abort, flash, g, render_template, request, redirect,
+from flask import (Flask, abort, flash, g, make_response, render_template, request, redirect,
                    send_file, session, url_for)
 from dotenv import load_dotenv, set_key
 from google import genai
@@ -212,6 +212,18 @@ def kullaniciyi_yukle():
         g.okunmamis = veritabani.okunmamis_yorum_sayisi(kullanici_id)
         g.yeni_duyuru = veritabani.okunmamis_duyuru_sayisi(kullanici_id)
 
+    # Öğretmen şifreyi sıfırladıysa öğrenci geçici şifreyle girmiştir. Geçici şifreyi
+    # öğretmen de bildiği için, öğrenci kendi şifresini belirlemeden başka sayfa açamaz.
+    # (before_request bir cevap döndürürse Flask asıl sayfayı hiç çalıştırmaz.)
+    if (g.kullanici and g.kullanici["gecici_sifre"]
+            and request.endpoint not in SIFRE_DEGISMEDEN_ACIK_SAYFALAR):
+        flash("Öğretmeninin verdiği geçici şifreyle girdin. Devam etmeden önce kendi şifreni belirle.", "hata")
+        return redirect(url_for("profil") + "#sifre")
+
+
+# Geçici şifreyle giren öğrencinin açabildiği sayfalar (şifre değiştirme, çıkış, sağlık kontrolü, CSS)
+SIFRE_DEGISMEDEN_ACIK_SAYFALAR = {"profil", "sifre_degistir", "cikis", "saglik", "static"}
+
 
 # ---------------------------------------------------------------------------
 # CSRF koruması
@@ -320,6 +332,11 @@ def site_kotasi_doldu():
 def yz_kotasi_doldu():
     """Kullanıcının kendi günlük hakkı ya da sitenin ortak günlük sınırı dolduysa True."""
     return veritabani.bugunku_yz_kullanimi(aktif_id()) >= GUNLUK_YZ_SINIRI or site_kotasi_doldu()
+
+
+def kalan_yz_hakki(kullanici_id):
+    """Kullanıcının bugün kalan yapay zekâ hakkı (eksiye düşmez)."""
+    return max(0, GUNLUK_YZ_SINIRI - veritabani.bugunku_yz_kullanimi(kullanici_id))
 
 
 def kota_mesaji():
@@ -575,6 +592,7 @@ def ana_sayfa():
     # Öğretmenden gelen, henüz görülmemiş en fazla 3 duyuru (ana sayfanın en üstünde gösterilir)
     yeni_duyurular = veritabani.ogrencinin_duyurulari(aktif_id(), sadece_yeniler=True, sinir=3)
     return render_template("index.html", anahtar_var=bool(api_anahtari()), canli=CANLI,
+                           yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI,
                            devam=devam, yeni_duyurular=yeni_duyurular,
                            devam_yuzde=ilerleme_hesapla(devam["biten"], devam["toplam"]) if devam else 0,
                            proje=request.args.get("proje", "")[:1000],
@@ -1125,7 +1143,8 @@ def profil():
                            simdiki_seri=simdiki_seri, en_uzun_seri=en_uzun_seri,
                            bugun_calisti=bugun in gunler,
                            takvim=takvim_olustur(etkinlik, bugun),
-                           en_kisa_sifre=EN_KISA_SIFRE)
+                           en_kisa_sifre=EN_KISA_SIFRE,
+                           yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI)
 
 
 @app.route("/profil/sifre", methods=["POST"])
@@ -1146,7 +1165,28 @@ def sifre_degistir():
         flash("Şu anki şifreni yanlış girdin.", "hata")
     else:
         flash("Şifren değiştirildi.", "bilgi")
-    return redirect(url_for("profil"))
+        return redirect(url_for("ana_sayfa") if g.kullanici["gecici_sifre"] else url_for("profil"))
+    return redirect(url_for("profil") + "#sifre")
+
+
+@app.route("/profil/sil", methods=["POST"])
+@giris_gerekli
+def hesabi_sil():
+    """
+    POST: Kullanıcı kendi hesabını ve bütün verilerini kalıcı olarak siler.
+    Kişisel verilerin sahibi kullanıcıdır; istediği zaman silebilmeli.
+    Yanlışlıkla ya da başkası tarafından silinmesin diye şifre ve "SİL" yazması isteniyor.
+    """
+    # Python "sil".upper() -> "SIL" verir (Türkçe İ'yi bilmez); iki yazımı da kabul ediyoruz
+    if request.form.get("onay", "").strip().upper().replace("İ", "I") != "SIL":
+        flash('Hesabını silmek için kutuya büyük harflerle "SİL" yaz.', "hata")
+        return redirect(url_for("profil") + "#hesap-sil")
+    if not veritabani.hesap_sil(aktif_id(), request.form.get("sifre", "")):
+        flash("Şifreni yanlış girdin; hesabın silinmedi.", "hata")
+        return redirect(url_for("profil") + "#hesap-sil")
+    session.clear()
+    flash("Hesabın ve bütün verilerin silindi. Görüşmek üzere!", "bilgi")
+    return redirect(url_for("giris"))
 
 
 @app.route("/adim/<int:adim_id>/not", methods=["POST"])
@@ -1344,6 +1384,7 @@ def sinif_detay(sinif_id):
             "yuzde": ilerleme_hesapla(satir["biten_adim"], satir["toplam_adim"]),
             "ipucu_sayisi": satir["ipucu_sayisi"],
             "commit_sayisi": satir["commit_sayisi"],
+            "yz_hafta": satir["yz_hafta"],                   # Son 7 günde yapay zekâ isteği
             "son_etkinlik": satir["son_etkinlik"] or None,   # '' ise "henüz yok"
         })
 
@@ -1406,7 +1447,8 @@ def sinif_indir(sinif_id):
     bellek = io.StringIO()
     yazici = csv.writer(bellek, delimiter=";")
     yazici.writerow(["Öğrenci", "Yol haritası", "Tamamlanan adım", "Toplam adım",
-                     "İlerleme (%)", "İpucu", "Commit", "Son etkinlik", "Sınıfa katılma"])
+                     "İlerleme (%)", "İpucu", "Commit", "Yapay zekâ (7 gün)", "Son etkinlik",
+                     "Sınıfa katılma"])
     # Not: Kullanıcı adları sadece harf/rakam/nokta/alt çizgi içerebildiği için
     # Excel'in formül sanabileceği (=, +, -, @ ile başlayan) bir değer oluşamaz.
     for satir in veritabani.sinif_ozeti(sinif_id):
@@ -1418,6 +1460,7 @@ def sinif_indir(sinif_id):
             ilerleme_hesapla(satir["biten_adim"], satir["toplam_adim"]),
             satir["ipucu_sayisi"],
             satir["commit_sayisi"],
+            satir["yz_hafta"],
             tarih_bicimle(satir["son_etkinlik"]) if satir["son_etkinlik"] else "",
             tarih_bicimle(satir["katilma_zamani"]),
         ])
@@ -1444,8 +1487,11 @@ def sinif_sil(sinif_id):
 
 @app.route("/ogretmen/ogrenci/<int:ogrenci_id>", methods=["GET"])
 @ogretmen_gerekli
-def ogrenci_detay(ogrenci_id):
-    """GET: Bir öğrencinin bütün yol haritalarını listeler (sadece kendi sınıfındaysa)."""
+def ogrenci_detay(ogrenci_id, gecici_sifre=None):
+    """
+    GET: Bir öğrencinin bütün yol haritalarını listeler (sadece kendi sınıfındaysa).
+    gecici_sifre: Şifre az önce sıfırlandıysa sayfada bir kez gösterilir.
+    """
     if not veritabani.ogretmen_gorebilir_mi(aktif_id(), ogrenci_id):
         abort(404)
     ogrenci = veritabani.kullanici_getir(ogrenci_id)
@@ -1469,7 +1515,29 @@ def ogrenci_detay(ogrenci_id):
     else:
         geri_adres = url_for("ogretmen_paneli")
     return render_template("ogrenci_detay.html", ogrenci=ogrenci, haritalar=haritalar,
-                           geri_adres=geri_adres, rozetler=rozetleri_hesapla(ogrenci_id))
+                           geri_adres=geri_adres, rozetler=rozetleri_hesapla(ogrenci_id),
+                           gecici_sifre=gecici_sifre)
+
+
+@app.route("/ogretmen/ogrenci/<int:ogrenci_id>/sifre-sifirla", methods=["POST"])
+@ogretmen_gerekli
+def ogrenci_sifre_sifirla(ogrenci_id):
+    """
+    POST: Şifresini unutan öğrenciye geçici şifre verir. (E-posta sistemimiz yok;
+    okulda şifresini unutan öğrenci zaten öğretmenine gider.)
+    Sadece kendi sınıfındaki ÖĞRENCİLER için: başka bir öğretmenin şifresi sıfırlanamaz.
+    Geçici şifre bir kez, bu sayfada gösterilir; hiçbir yere kaydedilmez (sadece hash'i).
+    """
+    ogrenci = veritabani.kullanici_getir(ogrenci_id)
+    if (ogrenci is None or ogrenci["rol"] != "ogrenci"
+            or not veritabani.ogretmen_gorebilir_mi(aktif_id(), ogrenci_id)):
+        abort(404)
+    sifre = veritabani.gecici_sifre_ver(ogrenci_id)
+    # Yönlendirme (redirect) yapmıyoruz: şifreyi flash ile çereze koymak yerine sayfayı
+    # doğrudan gösteriyoruz. Böylece geçici şifre tarayıcının çerezinde saklanmıyor.
+    cevap = make_response(ogrenci_detay(ogrenci_id, gecici_sifre=sifre))
+    cevap.headers["Cache-Control"] = "no-store"     # Tarayıcı bu sayfayı (şifreyi) önbellekte saklamasın
+    return cevap
 
 
 @app.route("/ogretmen/ogrenci/<int:ogrenci_id>/yol-haritasi/<int:harita_id>", methods=["GET"])
