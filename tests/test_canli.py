@@ -101,6 +101,16 @@ def test_saglik_kontrolu_giris_istemez(istemci):
     assert cevap.status_code == 200 and cevap.text == "tamam"
 
 
+def test_saglik_kontrolu_veritabani_yoksa_503_ve_log(istemci, monkeypatch, caplog):
+    def bozuk():
+        raise RuntimeError("baglanamadi")
+    monkeypatch.setattr(veritabani, "kullanici_sayisi", bozuk)
+    monkeypatch.setattr(veritabani, "baglanti_teshisi", lambda: "OperationalError: password authentication failed")
+    cevap = istemci.get("/saglik")
+    assert cevap.status_code == 503 and "password" not in cevap.text      # Ayrıntı ziyaretçiye gitmez
+    assert "password authentication failed" in caplog.text                 # Ama loglarda var
+
+
 # ---------------------------------------------------------------------------
 # Öğretmen kaydı
 # ---------------------------------------------------------------------------

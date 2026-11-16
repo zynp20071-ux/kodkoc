@@ -1,5 +1,5 @@
 """
-SQLite'tan PostgreSQL'e taşıma testleri.
+SQLite'tan PostgreSQL'e taşıma testleri (ve PostgreSQL bağlantı havuzunun dayanıklılığı).
 Sadece testler PostgreSQL ile çalıştırılırken (TEST_DATABASE_URL verilince) çalışır.
 """
 
@@ -51,6 +51,19 @@ def test_veriler_ve_idler_aynen_tasinir(eski_db):
 def test_tasimadan_sonra_yeni_kayitlar_cakismaz(eski_db):
     tasima.tasi(eski_db)
     assert veritabani.kullanici_ekle("ayse", "sifre123") == 6   # Sayaç en büyük id'den devam ediyor
+
+
+def test_kopan_baglanti_havuzu_bosaltmaz():
+    """
+    Canlıda yaşanan hata: Neon veritabanını uyutunca bağlantılar kopuyordu. Kopuk bağlantıda
+    rollback hata verdiği için bağlantı havuza geri DÖNMÜYOR, 5 kopukluktan sonra havuz
+    boşalıyor ve site çöküyordu. Havuzun kapasitesinden (5) fazla kopukluk taklit ediyoruz.
+    """
+    for _ in range(10):
+        b = veritabani.baglan()
+        b._baglanti.close()          # Bağlantıyı biz koparıyoruz (Neon'un yaptığı gibi)
+        b.close()                    # Hata vermemeli ve bağlantıyı havuza geri vermeli
+    assert veritabani.kullanici_sayisi() == 0      # Havuz hâlâ çalışıyor
 
 
 def test_dolu_veritabanina_tasima_yapilmaz(eski_db):

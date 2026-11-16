@@ -179,9 +179,16 @@ def _postgres_havuzu():
     """
     global _havuz
     if _havuz is None:
-        _havuz = ConnectionPool(VERITABANI_URL, min_size=1, max_size=5, open=True,
-                                kwargs={"row_factory": _satir_fabrikasi},
-                                check=ConnectionPool.check_connection)   # Kopan bağlantıyı yenile
+        _havuz = ConnectionPool(
+            VERITABANI_URL, min_size=1, max_size=5, open=True,
+            kwargs={"row_factory": _satir_fabrikasi},
+            check=ConnectionPool.check_connection,   # Vermeden önce bağlantı sağlam mı bak, kopuksa yenile
+            # Neon boşta kalan veritabanını birkaç dakika sonra uyutur ve açık bağlantıları koparır.
+            # Boşta 1 dakikadan uzun bekleyen bağlantıyı kendimiz kapatıyoruz, kopmuşunu beklemeyelim.
+            max_idle=60,
+            max_lifetime=600,                        # Hiçbir bağlantı 10 dakikadan uzun yaşamasın
+            timeout=15,                              # Bağlantı alınamazsa 30 değil 15 sn sonra hata ver
+        )
         atexit.register(_havuz.close)        # Program kapanırken bağlantıları düzgünce kapat
     return _havuz
 
@@ -233,8 +240,16 @@ class Baglanti:
 
     def close(self):
         if POSTGRES:
-            self._baglanti.rollback()                    # Commit edilmemiş bir şey kalmasın
-            _postgres_havuzu().putconn(self._baglanti)   # Bağlantıyı kapatma, havuza geri ver
+            try:
+                self._baglanti.rollback()                # Commit edilmemiş bir şey kalmasın
+            except psycopg.Error:
+                # Bağlantı bu arada kopmuş olabilir (ör. Neon veritabanını uyuttu).
+                # Hata yutulur; havuz kopuk bağlantıyı geri alınca kendisi atar.
+                pass
+            finally:
+                # finally: rollback hata verse BİLE bağlantı havuza geri verilir. Eskiden verilmiyordu;
+                # birkaç kopuk bağlantıdan sonra havuz boşalıyor ve site "bağlantı alınamadı" diye çöküyordu.
+                _postgres_havuzu().putconn(self._baglanti)
         else:
             self._baglanti.close()
 
@@ -242,6 +257,23 @@ class Baglanti:
 def baglan():
     """Veritabanına bağlanır ve bağlantıyı döndürür."""
     return Baglanti()
+
+
+def baglanti_teshisi():
+    """
+    Havuz bağlantı veremezse sadece "zaman aşımı" (PoolTimeout) görürüz, asıl sebebi değil.
+    Bu fonksiyon havuzu kullanmadan, doğrudan bir kez bağlanmayı dener ve asıl hatayı
+    (yanlış şifre, sunucu bulunamadı...) metin olarak döndürür. Sorun yoksa None.
+    Hata mesajlarında şifre bulunmaz; yine de adres ihtimaline karşı "://" sonrası gizlenir.
+    """
+    if not POSTGRES:
+        return None
+    try:
+        psycopg.connect(VERITABANI_URL, connect_timeout=10).close()
+        return None
+    except Exception as hata:
+        mesaj = re.sub(r"://\S+", "://***", str(hata).strip())
+        return f"{type(hata).__name__}: {mesaj}"
 
 
 def hazirla():

@@ -420,7 +420,13 @@ def saglik():
     "tamam" cevabı gelmezse uygulamanın çöktüğünü anlar ve yeniden başlatır.
     Veritabanına da basit bir sorgu atıyoruz; bağlantı kopuksa hata (500) döner.
     """
-    veritabani.kullanici_sayisi()
+    try:
+        veritabani.kullanici_sayisi()
+    except Exception as hata:
+        # Asıl sebebi sunucu kayıtlarına (log) yaz; ziyaretçiye ayrıntı gösterme
+        app.logger.error("Sağlık kontrolü: veritabanına ulaşılamadı (%s). Teşhis: %s",
+                         type(hata).__name__, veritabani.baglanti_teshisi())
+        return "veritabani yok", 503, {"Content-Type": "text/plain; charset=utf-8"}
     return "tamam", 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
