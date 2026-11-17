@@ -454,6 +454,21 @@ def hazirla():
             )
         """)
 
+        # "Öğretmenime sor": öğrencinin bir adım için öğretmenine sorduğu soru ve cevabı.
+        # cevap_goruldu: 0 = cevap geldi ama öğrenci henüz görmedi (menü rozeti için)
+        baglanti.execute("""
+            CREATE TABLE IF NOT EXISTS ogretmen_sorulari (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                adim_id       INTEGER NOT NULL REFERENCES adimlar(id),
+                soru          TEXT NOT NULL,
+                soru_zamani   TEXT NOT NULL,
+                cevap         TEXT,
+                cevaplayan_id INTEGER,
+                cevap_zamani  TEXT,
+                cevap_goruldu INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+
         # GÖÇ (migration): Tablolar daha önce bu sütunlar olmadan oluşturulduysa
         # sütunları sonradan ekle. Böylece eski veritabanındaki kayıtlar kaybolmaz.
         sutun_yoksa_ekle(baglanti, "adimlar", "not_metni", "TEXT")
@@ -735,6 +750,10 @@ def yol_haritasi_sil(harita_id, kullanici_id):
         """, (harita_id,))
         baglanti.execute("""
             DELETE FROM koc_sorulari
+            WHERE adim_id IN (SELECT id FROM adimlar WHERE yol_haritasi_id = ?)
+        """, (harita_id,))
+        baglanti.execute("""
+            DELETE FROM ogretmen_sorulari
             WHERE adim_id IN (SELECT id FROM adimlar WHERE yol_haritasi_id = ?)
         """, (harita_id,))
         baglanti.execute("DELETE FROM adimlar WHERE yol_haritasi_id = ?", (harita_id,))
@@ -1559,7 +1578,8 @@ def adim_sil(adim_id):
             return False
 
         # Önce adıma bağlı "çocuk" kayıtlar
-        for tablo in ("ipuclari", "ogretmen_yorumlari", "kod_incelemeleri", "koc_sorulari"):
+        for tablo in ("ipuclari", "ogretmen_yorumlari", "kod_incelemeleri", "koc_sorulari",
+                      "ogretmen_sorulari"):
             baglanti.execute(f"DELETE FROM {tablo} WHERE adim_id = ?", (adim_id,))
         # Commit'ler GitHub'da hâlâ var; silmiyoruz, sadece adımla bağlarını koparıyoruz
         baglanti.execute("UPDATE commitler SET adim_id = NULL WHERE adim_id = ?", (adim_id,))
@@ -1985,7 +2005,8 @@ def hesap_sil(kullanici_id, sifre):
         # 1) Kullanıcının yol haritalarına bağlı her şey
         haritalari = "SELECT id FROM yol_haritalari WHERE kullanici_id = :k"
         adimlari = f"SELECT id FROM adimlar WHERE yol_haritasi_id IN ({haritalari})"
-        for tablo in ("ipuclari", "ogretmen_yorumlari", "kod_incelemeleri", "koc_sorulari"):
+        for tablo in ("ipuclari", "ogretmen_yorumlari", "kod_incelemeleri", "koc_sorulari",
+                      "ogretmen_sorulari"):
             baglanti.execute(f"DELETE FROM {tablo} WHERE adim_id IN ({adimlari})", {"k": kullanici_id})
         baglanti.execute(f"DELETE FROM commitler WHERE yol_haritasi_id IN ({haritalari})", {"k": kullanici_id})
         baglanti.execute(f"DELETE FROM adimlar WHERE yol_haritasi_id IN ({haritalari})", {"k": kullanici_id})
@@ -1993,6 +2014,9 @@ def hesap_sil(kullanici_id, sifre):
 
         # 2) Öğretmense: başkalarına yazdığı yorumlar ve açtığı sınıflar (duyuruları, üyelikleriyle)
         baglanti.execute("DELETE FROM ogretmen_yorumlari WHERE ogretmen_id = :k", {"k": kullanici_id})
+        # Öğretmenin verdiği cevaplar öğrencide kalır, sadece "kim cevapladı" bilgisi silinir
+        baglanti.execute("UPDATE ogretmen_sorulari SET cevaplayan_id = NULL WHERE cevaplayan_id = :k",
+                         {"k": kullanici_id})
         siniflari = "SELECT id FROM siniflar WHERE ogretmen_id = :k"
         baglanti.execute(f"DELETE FROM duyurular WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
         baglanti.execute(f"DELETE FROM sinif_uyeleri WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
@@ -2172,8 +2196,8 @@ def degerlendiren_adi(kullanici_id):
 
 def okunmamis_bildirim_sayisi(ogrenci_id):
     """
-    Menüdeki "Geçmiş" rozeti: görülmemiş öğretmen yorumları + görülmemiş değerlendirmeler.
-    İki alt sorgunun sonucu toplanıyor.
+    Menüdeki "Geçmiş" rozeti: görülmemiş öğretmen yorumları + değerlendirmeler + soru cevapları.
+    Üç alt sorgunun sonucu toplanıyor.
     """
     baglanti = baglan()
     try:
@@ -2184,6 +2208,10 @@ def okunmamis_bildirim_sayisi(ogrenci_id):
                      WHERE y.kullanici_id = :k AND o.okundu = 0)
                  + (SELECT COUNT(*) FROM yol_haritalari
                      WHERE kullanici_id = :k AND degerlendirme_goruldu = 0)
+                 + (SELECT COUNT(*) FROM ogretmen_sorulari s
+                      JOIN adimlar a ON a.id = s.adim_id
+                      JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                     WHERE y.kullanici_id = :k AND s.cevap_goruldu = 0)
         """, {"k": ogrenci_id}).fetchone()[0]
     finally:
         baglanti.close()
@@ -2221,5 +2249,148 @@ def toplu_hedef_koy(sinif_id, sira, tarih):
         """, (tarih, sira, sinif_id))
         baglanti.commit()
         return imlec.rowcount
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 22) ÖĞRETMENİME SOR VE SINIF PROJESİNİN ADIM DAĞILIMI
+# ---------------------------------------------------------------------------
+
+def ogretmene_soru_ekle(adim_id, soru):
+    """Öğrencinin öğretmenine sorduğu soruyu kaydeder. (Yetki app.py'de kontrol edilir.)"""
+    baglanti = baglan()
+    try:
+        baglanti.execute("INSERT INTO ogretmen_sorulari (adim_id, soru, soru_zamani) VALUES (?, ?, ?)",
+                         (adim_id, soru, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def acik_soru_sayisi(ogrenci_id):
+    """Öğrencinin henüz cevaplanmamış soru sayısı (aynı anda en fazla birkaç soru sorabilsin)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT COUNT(*) FROM ogretmen_sorulari s
+            JOIN adimlar a ON a.id = s.adim_id
+            JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+            WHERE y.kullanici_id = ? AND s.cevap IS NULL
+        """, (ogrenci_id,)).fetchone()[0]
+    finally:
+        baglanti.close()
+
+
+def yol_haritasinin_ogretmen_sorulari(harita_id):
+    """Yol haritasındaki öğretmene sorulan sorular: {adim_id: [soru, ...]} (eskiden yeniye)."""
+    baglanti = baglan()
+    try:
+        satirlar = baglanti.execute("""
+            SELECT s.*, k.kullanici_adi AS cevaplayan_adi
+            FROM ogretmen_sorulari AS s
+            JOIN adimlar AS a ON a.id = s.adim_id
+            LEFT JOIN kullanicilar AS k ON k.id = s.cevaplayan_id
+            WHERE a.yol_haritasi_id = ?
+            ORDER BY s.id
+        """, (harita_id,)).fetchall()
+    finally:
+        baglanti.close()
+    sozluk = {}
+    for satir in satirlar:
+        sozluk.setdefault(satir["adim_id"], []).append(satir)
+    return sozluk
+
+
+def ogretmen_sorusu_getir(soru_id):
+    """Soruyu, sahibi olan öğrencinin ve yol haritasının id'siyle birlikte getirir (yoksa None)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT s.*, y.kullanici_id AS ogrenci_id, y.id AS harita_id
+            FROM ogretmen_sorulari AS s
+            JOIN adimlar AS a ON a.id = s.adim_id
+            JOIN yol_haritalari AS y ON y.id = a.yol_haritasi_id
+            WHERE s.id = ?
+        """, (soru_id,)).fetchone()
+    finally:
+        baglanti.close()
+
+
+def ogretmen_sorusunu_cevapla(soru_id, ogretmen_id, cevap):
+    """Öğretmenin cevabını kaydeder; öğrenci için "yeni" olur (cevap_goruldu = 0)."""
+    baglanti = baglan()
+    try:
+        baglanti.execute("""
+            UPDATE ogretmen_sorulari
+            SET cevap = ?, cevaplayan_id = ?, cevap_zamani = ?, cevap_goruldu = 0
+            WHERE id = ?
+        """, (cevap, ogretmen_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), soru_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def cevaplari_goruldu_yap(harita_id):
+    """Öğrenci yol haritasını açınca yeni cevapları "görüldü" yapar; yeni olanların id'lerini döndürür."""
+    baglanti = baglan()
+    try:
+        yeniler = [s["id"] for s in baglanti.execute("""
+            SELECT s.id FROM ogretmen_sorulari s JOIN adimlar a ON a.id = s.adim_id
+            WHERE a.yol_haritasi_id = ? AND s.cevap_goruldu = 0
+        """, (harita_id,)).fetchall()]
+        if yeniler:
+            yer_tutucular = ", ".join("?" * len(yeniler))
+            baglanti.execute(f"UPDATE ogretmen_sorulari SET cevap_goruldu = 1 WHERE id IN ({yer_tutucular})",
+                             yeniler)
+            baglanti.commit()
+        return yeniler
+    finally:
+        baglanti.close()
+
+
+def ogretmenin_bekleyen_sorulari(ogretmen_id):
+    """
+    Öğretmenin sınıflarındaki öğrencilerin cevap bekleyen soruları, en eskisi en üstte
+    (önce bekleyen önce cevaplansın). EXISTS: öğrenci bu öğretmenin sınıflarından
+    en az birinde mi? Öğrenci iki sınıftaysa bile soru bir kez gelir.
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT s.id, s.soru, s.soru_zamani, a.id AS adim_id, a.baslik, a.sira,
+                   y.id AS harita_id, k.id AS ogrenci_id, k.kullanici_adi
+            FROM ogretmen_sorulari AS s
+            JOIN adimlar        AS a ON a.id = s.adim_id
+            JOIN yol_haritalari AS y ON y.id = a.yol_haritasi_id
+            JOIN kullanicilar   AS k ON k.id = y.kullanici_id
+            WHERE s.cevap IS NULL AND EXISTS (
+                SELECT 1 FROM sinif_uyeleri u JOIN siniflar c ON c.id = u.sinif_id
+                WHERE u.ogrenci_id = k.id AND c.ogretmen_id = ?)
+            ORDER BY s.soru_zamani
+        """, (ogretmen_id,)).fetchall()
+    finally:
+        baglanti.close()
+
+
+def sinif_projesi_adimlari(sinif_id):
+    """
+    Sınıf projesinin adım dağılımı için ham veri: sınıftaki her öğrencinin sınıf projesi
+    için çıkardığı EN SON yol haritasının adımları (sıra, bitti mi, kaç ipucu alındı).
+    Hesaplama (kim hangi adımda?) app.py'de yapılır.
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT a.yol_haritasi_id AS harita_id, a.sira, a.tamamlandi,
+                   (SELECT COUNT(*) FROM ipuclari i WHERE i.adim_id = a.id) AS ipucu_sayisi
+            FROM adimlar AS a
+            WHERE a.yol_haritasi_id IN (
+                SELECT MAX(y.id) FROM yol_haritalari y
+                JOIN sinif_uyeleri u ON u.ogrenci_id = y.kullanici_id AND u.sinif_id = y.sinif_id
+                WHERE y.sinif_id = ?
+                GROUP BY y.kullanici_id)
+            ORDER BY a.yol_haritasi_id, a.sira
+        """, (sinif_id,)).fetchall()
     finally:
         baglanti.close()

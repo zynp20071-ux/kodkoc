@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef. 292 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı. 309 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -377,8 +377,10 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Öğretmen paneli özeti | `app.py` → `ogretmen_paneli()` |
 | Değerlendirme bildirimi | `veritabani.py` → `okunmamis_bildirim_sayisi()`, `degerlendirmeyi_goruldu_yap()` |
 | Toplu hedef | `app.py` → `toplu_hedef()`; `veritabani.py` → `toplu_hedef_koy()` |
+| Öğretmenime sor | `app.py` → `ogretmene_sor()`, `ogretmen_cevapla()`; `veritabani.py` 22. bölüm |
+| Sınıf projesi adım dağılımı | `app.py` → `proje_adim_dagilimi()`; `veritabani.py` → `sinif_projesi_adimlari()` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -451,6 +453,15 @@ Yol haritasında `degerlendirme_goruldu` sütunu var: öğretmen puan verince (y
 
 **Toplu hedef bütün öğrencilerin bütün yol haritalarını mı değiştiriyor?**
 Hayır. Tek bir `UPDATE` var ama `WHERE` koşulu sadece **bu sınıfın projesi için çıkarılmış** (`y.sinif_id = ?`) ve öğrencisi **hâlâ sınıfta olan** (`JOIN sinif_uyeleri`) yol haritalarının o numaralı adımını seçiyor. Öğrencinin başka projesine ya da sınıftan ayrılmış öğrenciye dokunmuyor; ikisinin de testi var. Kaç adıma tarih konduğunu `rowcount` söylüyor, öğretmene "2 öğrencinin 2. adımına..." diye gösteriyorum.
+
+**"Koça soru sor" varken neden "Öğretmenime sor" da var?**
+Koç (yapay zekâ) kavramı anlatır ama öğrenciyi tanımaz; bazı sorular ("derste gösterdiğiniz örnek neydi?") ancak öğretmene sorulabilir. Soru yeni bir tabloda (`ogretmen_sorulari`) duruyor ve bir adıma bağlı. Öğretmen panelinde "Cevap bekleyen sorular" listesi en eskiden yeniye sıralı; öğrenci iki sınıftaysa soru `EXISTS` sayesinde bir kez geliyor. Cevap gelince öğrencinin menü rozeti artıyor (rozet artık üç şeyi topluyor: yorum + değerlendirme + cevap). Sınırlar: sadece bir sınıfa üye olan sorabiliyor, aynı anda en fazla 5 cevapsız soru (öğretmeni boğmasın), öğretmen sadece kendi sınıfındaki öğrencinin sorusunu cevaplayabiliyor; öğrenci sınıftan ayrılınca cevaplayamıyor.
+
+**Yeni tablo ekleyince nelere dikkat ettin?**
+Soru tablosu `adim_id` ile adımlara bağlı (yabancı anahtar). Bir adım, yol haritası ya da hesap silinirken önce bu tablodaki satırlar silinmeli; yoksa PostgreSQL silmeyi reddeder. Üç silme yoluna da ekledim ve her biri için test yazdım. Öğretmen hesabını silerse verdiği cevaplar öğrencide kalıyor, sadece "kim cevapladı" bilgisi boşalıyor.
+
+**Sınıf projesinin "adım adım" tablosu nasıl hesaplanıyor?**
+Veritabanından her öğrencinin sınıf projesi için çıkardığı **en son** yol haritasının adımlarını (sıra, bitti mi, kaç ipucu) alıyorum: `MAX(y.id) ... GROUP BY y.kullanici_id`. Gerisi Python'da: öğrencinin "şu an bulunduğu adım", bitirmediği en küçük numaralı adım; orada 2 ya da daha fazla ipucu aldıysa "takıldı" sayılıyor. Öğretmen hangi adımda sınıfın çoğunun zorlandığını görüp o konuyu derste anlatabiliyor.
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

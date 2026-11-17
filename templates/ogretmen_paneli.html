@@ -18,6 +18,24 @@
       </form>
     </section>
 
+    {% if bekleyen_sorular %}
+    <!-- Öğrencilerin "Öğretmenime sor" ile gönderdiği, henüz cevaplanmamış sorular (en eskisi üstte) -->
+    <section class="kart bekleyen-sorular">
+      <h2 class="ara-baslik">Cevap bekleyen sorular ({{ bekleyen_sorular | length }})</h2>
+      <ul>
+        {% for s in bekleyen_sorular %}
+        <li>
+          <a href="{{ url_for('ogrenci_yol_haritasi', ogrenci_id=s.ogrenci_id, harita_id=s.harita_id) }}#adim-{{ s.adim_id }}">
+            <strong>{{ s.kullanici_adi }}</strong> · {{ s.baslik | adim_basligi(s.sira) }}
+          </a>
+          <p class="bekleyen-soru-metni">{{ s.soru | truncate(160) }}</p>
+          <span class="gecmis-durum">{{ s.soru_zamani | tarih }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
     {% if siniflar %}
     <h2 class="ara-baslik">Sınıfların</h2>
     <ul class="gecmis-listesi">

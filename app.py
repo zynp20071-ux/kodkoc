@@ -771,13 +771,16 @@ def yol_haritasi_goster(harita_id):
     # Hangilerinin yeni olduğunu da sayfaya iletiyoruz ki bir kereliğine "Yeni" yazsın.
     yeni_yorumlar = veritabani.yorumlari_okundu_yap(harita_id)
     yeni_degerlendirme = veritabani.degerlendirmeyi_goruldu_yap(harita_id)
+    yeni_cevaplar = veritabani.cevaplari_goruldu_yap(harita_id)
     g.okunmamis = veritabani.okunmamis_bildirim_sayisi(aktif_id())
     return yol_haritasi_sayfasi(harita, adim_satirlari, yeni_yorum_idleri=set(yeni_yorumlar),
-                                yeni_degerlendirme=yeni_degerlendirme)
+                                yeni_degerlendirme=yeni_degerlendirme,
+                                yeni_cevap_idleri=set(yeni_cevaplar),
+                                ogretmene_sorabilir=bool(veritabani.ogrencinin_siniflari(aktif_id())))
 
 
 def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yorum_idleri=(),
-                         yeni_degerlendirme=False):
+                         yeni_degerlendirme=False, yeni_cevap_idleri=(), ogretmene_sorabilir=False):
     """
     Yol haritası sayfasını hazırlar. Hem öğrencinin kendi sayfası hem de
     öğretmenin salt okunur görünümü bu fonksiyonu kullanır (kod tekrarı olmasın diye).
@@ -793,6 +796,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
     yorumlar = veritabani.yol_haritasinin_yorumlari(harita_id)
     incelemeler = veritabani.yol_haritasinin_incelemeleri(harita_id)
     sorular = veritabani.yol_haritasinin_sorulari(harita_id)       # "Koça soru sor" konuşmaları
+    ogretmen_sorulari = veritabani.yol_haritasinin_ogretmen_sorulari(harita_id)   # "Öğretmenime sor"
 
     # GitHub commit'leri: hepsi (en yeniden eskiye) ve adımlara göre gruplanmış hali
     commitler = veritabani.yol_haritasinin_commitleri(harita_id)
@@ -818,6 +822,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
             "kendi_eklendi": bool(satir["kendi_eklendi"]),
             "icerik_html": guvenli_markdown(satir["icerik"]),
             "tamamlandi": bool(satir["tamamlandi"]),
+            "ogretmen_sorulari": ogretmen_sorulari.get(satir["id"], []),
             "hedef_tarih": satir["hedef_tarih"],
             "hedef_durumu": hedef_durumu(satir["hedef_tarih"], satir["tamamlandi"], bugun),
             # Eski kayıtlarda boş: öğretmen koymuş sayılır (öğrenci değiştiremesin)
@@ -866,6 +871,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
                            bugun=bugun.isoformat(),
                            degerlendiren=veritabani.degerlendiren_adi(harita["degerlendiren_id"]),
                            yeni_degerlendirme=yeni_degerlendirme,
+                           yeni_cevap_idleri=yeni_cevap_idleri, ogretmene_sorabilir=ogretmene_sorabilir,
                            commitler=commitler,
                            yeni_yorum_idleri=yeni_yorum_idleri)
 
@@ -1275,6 +1281,35 @@ def hesabi_sil():
     return redirect(url_for("giris"))
 
 
+EN_UZUN_OGRETMEN_SORUSU = 500
+EN_FAZLA_ACIK_SORU = 5          # Aynı anda cevap bekleyen en fazla soru (öğretmeni boğmasın)
+
+
+@app.route("/adim/<int:adim_id>/ogretmene-sor", methods=["POST"])
+@giris_gerekli
+def ogretmene_sor(adim_id):
+    """
+    POST: Öğrenci bir adım için öğretmenine soru sorar. Koça sormaktan farkı: cevabı
+    yapay zekâ değil, öğrenciyi tanıyan öğretmen verir. Sadece bir sınıfa üye olan sorabilir.
+    """
+    adim = veritabani.adim_getir(adim_id, aktif_id())       # Sadece kendi adımı
+    if adim is None:
+        abort(404)
+    if not veritabani.ogrencinin_siniflari(aktif_id()):
+        flash("Öğretmenine soru sorabilmek için önce bir sınıfa katıl.", "hata")
+        return redirect(adim_adresi(adim))
+    soru = request.form.get("soru", "").strip()
+    if not soru or len(soru) > EN_UZUN_OGRETMEN_SORUSU:
+        flash(f"Sorun 1-{EN_UZUN_OGRETMEN_SORUSU} karakter olmalı.", "hata")
+        return redirect(adim_adresi(adim))
+    if veritabani.acik_soru_sayisi(aktif_id()) >= EN_FAZLA_ACIK_SORU:
+        flash(f"Cevap bekleyen {EN_FAZLA_ACIK_SORU} sorun var. Öğretmenin onları cevaplayınca yenisini sorabilirsin.", "hata")
+        return redirect(adim_adresi(adim))
+    veritabani.ogretmene_soru_ekle(adim_id, soru)
+    flash("Sorun öğretmenine iletildi. Cevaplayınca menüde bildirim göreceksin.", "bilgi")
+    return redirect(adim_adresi(adim))
+
+
 @app.route("/adim/<int:adim_id>/hedef", methods=["POST"])
 @giris_gerekli
 def kendi_hedefim(adim_id):
@@ -1425,7 +1460,8 @@ def ogretmen_paneli():
             "geciken": sum(o["geciken_adim"] for o in ozet),
             "baslamayan": len(ozet) - len(baslayan),
         })
-    return render_template("ogretmen_paneli.html", siniflar=siniflar)
+    return render_template("ogretmen_paneli.html", siniflar=siniflar,
+                           bekleyen_sorular=veritabani.ogretmenin_bekleyen_sorulari(aktif_id()))
 
 
 @app.route("/ogretmen/sinif", methods=["POST"])
@@ -1530,11 +1566,44 @@ def sinif_detay(sinif_id):
                            takilanlar=veritabani.takilan_adimlar(sinif_id),
                            duyurular=veritabani.sinifin_duyurulari(sinif_id),
                            akis=veritabani.sinif_etkinlik_akisi(sinif_id),
+                           proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
                            en_uzun_duyuru=EN_UZUN_DUYURU, en_uzun_proje=EN_UZUN_SINIF_PROJESI)
 
 
 EN_UZUN_DUYURU = 1000
 EN_UZUN_SINIF_PROJESI = 1000
+
+
+def proje_adim_dagilimi(sinif_id):
+    """
+    Sınıf projesinde her adım için: kaç öğrenci bitirdi, kaçı şu an o adımda, kaçı orada takıldı.
+    "Şu an o adımda" = bitirmediği EN KÜÇÜK numaralı adım (sırayla ilerlediği varsayılır).
+    "Takıldı" = şu an o adımda VE o adımda en az 2 ipucu almış.
+    Örnek dönüş: [{"sira": 1, "biten": 3, "burada": 0, "takilan": 0, "oran": 100}, ...]
+    """
+    haritalar = {}                        # {harita_id: [(sira, tamamlandi, ipucu), ...]}
+    for s in veritabani.sinif_projesi_adimlari(sinif_id):
+        haritalar.setdefault(s["harita_id"], []).append((s["sira"], s["tamamlandi"], s["ipucu_sayisi"]))
+    if not haritalar:
+        return []
+
+    en_cok_adim = max(len(adimlar) for adimlar in haritalar.values())
+    dagilim = {sira: {"sira": sira, "biten": 0, "burada": 0, "takilan": 0}
+               for sira in range(1, en_cok_adim + 1)}
+    for adimlar in haritalar.values():
+        bitmemisler = [(sira, ipucu) for sira, bitti, ipucu in adimlar if not bitti]
+        for sira, bitti, _ in adimlar:
+            if bitti:
+                dagilim[sira]["biten"] += 1
+        if bitmemisler:
+            sira, ipucu = min(bitmemisler)                  # İlk bitmemiş adım
+            dagilim[sira]["burada"] += 1
+            if ipucu >= 2:
+                dagilim[sira]["takilan"] += 1
+    ogrenci_sayisi = len(haritalar)
+    for satir in dagilim.values():
+        satir["oran"] = round(satir["biten"] * 100 / ogrenci_sayisi)
+    return list(dagilim.values())
 
 
 @app.route("/ogretmen/sinif/<int:sinif_id>/proje", methods=["POST"])
@@ -1786,6 +1855,25 @@ def hedef_tarih_koy(ogrenci_id, adim_id):
 
 
 EN_UZUN_DEGERLENDIRME = 1000
+EN_UZUN_OGRETMEN_CEVABI = 1000
+
+
+@app.route("/ogretmen/soru/<int:soru_id>/cevap", methods=["POST"])
+@ogretmen_gerekli
+def ogretmen_cevapla(soru_id):
+    """POST: Öğretmen, sınıfındaki bir öğrencinin sorusunu cevaplar (cevap sonradan düzeltilebilir)."""
+    soru = veritabani.ogretmen_sorusu_getir(soru_id)
+    if soru is None or not veritabani.ogretmen_gorebilir_mi(aktif_id(), soru["ogrenci_id"]):
+        abort(404)
+    geri = url_for("ogrenci_yol_haritasi", ogrenci_id=soru["ogrenci_id"],
+                   harita_id=soru["harita_id"]) + f"#adim-{soru['adim_id']}"
+    cevap = request.form.get("cevap", "").strip()
+    if not cevap or len(cevap) > EN_UZUN_OGRETMEN_CEVABI:
+        flash(f"Cevap 1-{EN_UZUN_OGRETMEN_CEVABI} karakter olmalı.", "hata")
+        return redirect(geri)
+    veritabani.ogretmen_sorusunu_cevapla(soru_id, aktif_id(), cevap)
+    flash("Cevabın öğrenciye iletildi.", "bilgi")
+    return redirect(geri)
 
 
 @app.route("/ogretmen/sinif/<int:sinif_id>/toplu-hedef", methods=["POST"])

@@ -225,6 +225,34 @@
         </div>
         {% endfor %}
 
+        <!-- "Öğretmenime sor": öğrencinin öğretmene sorduğu sorular ve cevaplar -->
+        {% for s in adim.ogretmen_sorulari %}
+        <div class="ogretmen-sorusu {% if s.id in yeni_cevap_idleri %}yeni{% endif %}">
+          <p class="ipucu-etiket">{{ 'Öğrencinin sorusu' if ogretmen_gorunumu else 'Öğretmenine sorduğun' }} · {{ s.soru_zamani | tarih }}</p>
+          <p>{{ s.soru }}</p>
+          {% if s.cevap %}
+          <div class="ogretmen-cevabi">
+            <p class="ipucu-etiket">Cevap{% if s.cevaplayan_adi %} · {{ s.cevaplayan_adi }}{% endif %} · {{ s.cevap_zamani | tarih }}
+              {% if s.id in yeni_cevap_idleri %}<span class="yeni-etiketi">Yeni</span>{% endif %}</p>
+            <p>{{ s.cevap }}</p>
+          </div>
+          {% elif not ogretmen_gorunumu %}
+          <p class="gecmis-durum">Cevap bekleniyor…</p>
+          {% endif %}
+          {% if ogretmen_gorunumu %}
+          <details {% if not s.cevap %}open{% endif %}>
+            <summary>{{ 'Cevabı düzelt' if s.cevap else 'Cevapla' }}</summary>
+            <form method="post" action="{{ url_for('ogretmen_cevapla', soru_id=s.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="cevap-{{ s.id }}" class="gizli">Cevap</label>
+              <textarea id="cevap-{{ s.id }}" name="cevap" rows="3" maxlength="1000" required>{{ s.cevap or '' }}</textarea>
+              <button type="submit" class="ikincil">Cevabı gönder</button>
+            </form>
+          </details>
+          {% endif %}
+        </div>
+        {% endfor %}
+
         <!-- "Kodumu incelet" geri bildirimleri (en yenisi üstte); hem öğrenci hem öğretmen görür -->
         {% for k in adim.incelemeler %}
         <div class="kod-incelemesi">
@@ -343,6 +371,21 @@
           </details>
           {% else %}
           <p class="ipucu-bitti">Bu adımın bütün kod inceleme haklarını kullandın.</p>
+          {% endif %}
+
+          {% if ogretmene_sorabilir %}
+          <!-- Öğretmenime sor: koçun (yapay zekânın) değil, öğretmenin cevabı -->
+          <details>
+            <summary>Öğretmenime sor</summary>
+            <form method="post" action="{{ url_for('ogretmene_sor', adim_id=adim.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="ogretmen-soru-{{ adim.id }}" class="gizli">Öğretmenine sorun</label>
+              <textarea id="ogretmen-soru-{{ adim.id }}" name="soru" rows="3" maxlength="500" required
+                        placeholder="Örnek: Bu adımda dosyayı hangi modda açmam gerektiğini anlamadım, derste anlattığınız örneği tekrar gösterebilir misiniz?"></textarea>
+              <button type="submit" class="ikincil">Öğretmenime gönder</button>
+              <p class="ipucu-yazi">Önce koça sormayı ve ipucu almayı dene; öğretmenin de cevaplamak için zaman ayırıyor.</p>
+            </form>
+          </details>
           {% endif %}
 
           {% if not adim.tamamlandi and adim.hedef_koyan != 'ogretmen' %}

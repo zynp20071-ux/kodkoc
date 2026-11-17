@@ -185,6 +185,34 @@
     </section>
     {% endif %}
 
+    {% if proje_adimlari %}
+    <!-- Sınıf projesi adım adım: her adımı kaç kişi bitirdi, kaçı şu an orada, kaçı takıldı -->
+    <h2 class="ara-baslik" id="proje-adimlari">Sınıf projesi: adım adım</h2>
+    <section class="kart">
+      <div class="tablo-kutusu">
+        <table class="tablo">
+          <thead>
+            <tr><th>Adım</th><th>Bitiren</th><th>Şu an burada</th><th title="Şu an bu adımda ve en az 2 ipucu almış">Takılan</th></tr>
+          </thead>
+          <tbody>
+            {% for a in proje_adimlari %}
+            <tr>
+              <td>{{ a.sira }}. adım</td>
+              <td class="ilerleme-hucresi">
+                <span class="ilerleme-cubugu kucuk"><span class="ilerleme-dolu" style="width: {{ a.oran }}%"></span></span>
+                <span class="gecmis-durum">{{ a.biten }} öğrenci · %{{ a.oran }}</span>
+              </td>
+              <td>{{ a.burada or '—' }}</td>
+              <td>{% if a.takilan %}<span class="hedef-etiketi hedef-gecikti">{{ a.takilan }}</span>{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="ipucu-yazi">"Şu an burada": öğrencinin bitirmediği ilk adım. Bir adımda çok kişi takıldıysa o konuyu derste birlikte konuşmak iyi olabilir.</p>
+    </section>
+    {% endif %}
+
     {% if akis %}
     <!-- Son etkinlikler: sınıfta en son ne oldu? (6 farklı tablodan UNION ALL ile) -->
     <h2 class="ara-baslik" id="etkinlikler">Son etkinlikler</h2>

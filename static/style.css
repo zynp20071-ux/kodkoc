@@ -1215,3 +1215,25 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 .toplu-hedef .satir label { margin: 0; }
 .toplu-hedef input[type="number"] { width: 5em; }
 .toplu-hedef .satir button { margin-top: 0; }
+
+/* --- Öğretmenime sor: soru ve cevap kutuları; öğretmen panelindeki bekleyen sorular --- */
+.ogretmen-sorusu {
+  border-left: 4px solid var(--vurgu);
+  background: var(--alan);
+  padding: 10px 14px;
+  margin: 10px 0;
+  border-radius: 0 8px 8px 0;
+}
+.ogretmen-sorusu.yeni { border-left-color: var(--yesil); }
+.ogretmen-cevabi {
+  background: var(--yesil-acik);
+  color: var(--yesil-yazi);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+.ogretmen-cevabi .ipucu-etiket { color: var(--yesil-yazi); }
+.bekleyen-sorular ul { list-style: none; padding: 0; margin: 0; }
+.bekleyen-sorular li { padding: 10px 0; border-top: 1px solid var(--cizgi); }
+.bekleyen-sorular li:first-child { border-top: none; }
+.bekleyen-soru-metni { margin: 4px 0; color: var(--yumusak); }
