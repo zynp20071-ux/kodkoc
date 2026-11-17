@@ -1237,3 +1237,7 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 .bekleyen-sorular li { padding: 10px 0; border-top: 1px solid var(--cizgi); }
 .bekleyen-sorular li:first-child { border-top: none; }
 .bekleyen-soru-metni { margin: 4px 0; color: var(--yumusak); }
+
+/* --- Onay kutusu satırı (ör. "sınıfla paylaş") --- */
+.onay-kutusu { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 8px 0; }
+.onay-kutusu input { width: auto; margin: 0; }

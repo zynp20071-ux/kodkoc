@@ -34,6 +34,22 @@
     </div>
     {% endif %}
 
+    {% if paylasilan_sorular %}
+    <!-- Öğretmenin "sınıfla paylaş" dediği soru-cevaplar. Soranın adı gösterilmez. -->
+    <h2 class="ara-baslik" id="paylasilan-sorular">Sınıfça sorulanlar</h2>
+    <p class="ipucu-yazi">Arkadaşlarının öğretmene sorduğu ve öğretmenin herkesle paylaştığı sorular. Belki senin de aklındaki sorudur.</p>
+    {% for s in paylasilan_sorular %}
+    <div class="ogretmen-sorusu">
+      <p class="ipucu-etiket">{{ s.baslik | adim_basligi(s.sira) }}</p>
+      <p>{{ s.soru }}</p>
+      <div class="ogretmen-cevabi">
+        <p class="ipucu-etiket">Cevap · {{ s.ogretmen_adi }} · {{ s.cevap_zamani | tarih }}</p>
+        <p>{{ s.cevap }}</p>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
     {% if siniflar %}
     <h2 class="ara-baslik">Katıldığın sınıflar</h2>
     <ul class="gecmis-listesi">

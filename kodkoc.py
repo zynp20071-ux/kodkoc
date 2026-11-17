@@ -278,14 +278,25 @@ def yol_haritasi_iste(istemci, proje, bilgi):
     return yapay_zekaya_sor(istemci, mesaj, TALIMAT)
 
 
-def ipucu_iste(istemci, proje, adim_basligi, adim_icerigi, onceki_ipuclari, soru, seviye):
+def bildikleri_satiri(bilgi):
+    """
+    Öğrencinin yol haritasını çıkarırken yazdığı "bildiği diller/teknolojiler".
+    Koç (ipucu, soru, inceleme) bunu bilirse anlatımı öğrencinin seviyesine göre ayarlar:
+    Python'a yeni başlayana başka, JavaScript bilene başka benzetme yapar.
+    """
+    return f"Öğrencinin bildikleri:\n{bilgi or 'Belirtilmedi (yeni başlıyor olabilir).'}\n\n"
+
+
+def ipucu_iste(istemci, proje, adim_basligi, adim_icerigi, onceki_ipuclari, soru, seviye, bilgi=""):
     """
     Öğrencinin takıldığı adım için istenen seviyede (1, 2 ya da 3) ipucu döndürür.
     onceki_ipuclari: daha önce bu adım için verilmiş ipucu metinlerinin listesi.
+    bilgi: öğrencinin bildikleri (anlatımı seviyesine göre ayarlamak için).
     """
     onceki = "\n\n".join(f"{i}. ipucu: {metin}" for i, metin in enumerate(onceki_ipuclari, start=1))
     mesaj = (
         f"Öğrencinin projesi:\n{proje}\n\n"
+        + bildikleri_satiri(bilgi) +
         f"Takıldığı adım: {adim_basligi}\n{adim_icerigi}\n\n"
         f"Daha önce verilen ipuçları:\n{onceki or 'Yok.'}\n\n"
         f"Öğrencinin anlattığı sorun:\n{soru or 'Öğrenci bir şey yazmadı, sadece takıldığını söyledi.'}\n\n"
@@ -324,10 +335,11 @@ def satir_numarala(kod):
     return "\n".join(f"{i}: {satir}" for i, satir in enumerate(kod.splitlines(), start=1))
 
 
-def kod_incele(istemci, proje, adim_basligi, adim_icerigi, kod, aciklama):
+def kod_incele(istemci, proje, adim_basligi, adim_icerigi, kod, aciklama, bilgi=""):
     """Öğrencinin kodu için, düzeltilmiş kod VERMEDEN geri bildirim döndürür."""
     mesaj = (
         f"Öğrencinin projesi:\n{proje}\n\n"
+        + bildikleri_satiri(bilgi) +
         f"Üzerinde çalıştığı adım: {adim_basligi}\n{adim_icerigi}\n\n"
         f"Öğrencinin ne yapmaya çalıştığı:\n{aciklama or 'Belirtmedi.'}\n\n"
         f"Öğrencinin kodu (satır numaralı):\n{satir_numarala(kod)}"
@@ -335,7 +347,7 @@ def kod_incele(istemci, proje, adim_basligi, adim_icerigi, kod, aciklama):
     return yapay_zekaya_sor(istemci, mesaj, KOD_INCELEME_TALIMATI, sicaklik=0.3)
 
 
-def soru_sor(istemci, proje, adim_basligi, adim_icerigi, onceki_konusma, soru):
+def soru_sor(istemci, proje, adim_basligi, adim_icerigi, onceki_konusma, soru, bilgi=""):
     """
     "Koça soru sor": öğrencinin serbest sorusuna kod vermeden cevap döndürür.
     onceki_konusma: bu adımda daha önce sorulan [(soru, cevap), ...] listesi.
@@ -345,6 +357,7 @@ def soru_sor(istemci, proje, adim_basligi, adim_icerigi, onceki_konusma, soru):
     gecmis = "\n\n".join(f"Öğrenci: {s}\nKodKoç: {c}" for s, c in onceki_konusma)
     mesaj = (
         f"Öğrencinin projesi:\n{proje}\n\n"
+        + bildikleri_satiri(bilgi) +
         f"Üzerinde çalıştığı adım: {adim_basligi}\n{adim_icerigi}\n\n"
         f"Bu adımda daha önceki konuşmanız:\n{gecmis or 'Yok, bu ilk soru.'}\n\n"
         f"Öğrencinin yeni sorusu:\n{soru}"

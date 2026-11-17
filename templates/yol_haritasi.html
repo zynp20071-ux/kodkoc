@@ -233,6 +233,7 @@
           {% if s.cevap %}
           <div class="ogretmen-cevabi">
             <p class="ipucu-etiket">Cevap{% if s.cevaplayan_adi %} · {{ s.cevaplayan_adi }}{% endif %} · {{ s.cevap_zamani | tarih }}
+              {% if s.paylasildi %}· sınıfla paylaşıldı{% endif %}
               {% if s.id in yeni_cevap_idleri %}<span class="yeni-etiketi">Yeni</span>{% endif %}</p>
             <p>{{ s.cevap }}</p>
           </div>
@@ -246,6 +247,11 @@
               <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
               <label for="cevap-{{ s.id }}" class="gizli">Cevap</label>
               <textarea id="cevap-{{ s.id }}" name="cevap" rows="3" maxlength="1000" required>{{ s.cevap or '' }}</textarea>
+              <!-- İşaretlenirse soru-cevap sınıftaki herkesin "Sınıfım" sayfasında görünür (soranın adı olmadan) -->
+              <label class="onay-kutusu">
+                <input type="checkbox" name="paylas" value="1" {% if s.paylasildi %}checked{% endif %}>
+                Bu soru-cevabı sınıfla paylaş <span class="istege-bagli">(soranın adı görünmez)</span>
+              </label>
               <button type="submit" class="ikincil">Cevabı gönder</button>
             </form>
           </details>

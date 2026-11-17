@@ -504,6 +504,8 @@ def hazirla():
         sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendiren_id", "INTEGER")
         # Öğrenci değerlendirmeyi gördü mü? (1 = gördü ya da değerlendirme yok, 0 = yeni)
         sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_goruldu", "INTEGER NOT NULL DEFAULT 1")
+        # Öğretmen bu soru-cevabı sınıfla paylaştı mı? (1 = sınıftaki herkes görür, soranın adı gizli)
+        sutun_yoksa_ekle(baglanti, "ogretmen_sorulari", "paylasildi", "INTEGER NOT NULL DEFAULT 0")
 
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
@@ -773,7 +775,7 @@ def adim_getir(adim_id, kullanici_id):
     baglanti = baglan()
     try:
         return baglanti.execute("""
-            SELECT a.*, y.proje
+            SELECT a.*, y.proje, y.bilgi
             FROM adimlar AS a
             JOIN yol_haritalari AS y ON y.id = a.yol_haritasi_id
             WHERE a.id = ? AND y.kullanici_id = ?
@@ -2317,15 +2319,19 @@ def ogretmen_sorusu_getir(soru_id):
         baglanti.close()
 
 
-def ogretmen_sorusunu_cevapla(soru_id, ogretmen_id, cevap):
-    """Öğretmenin cevabını kaydeder; öğrenci için "yeni" olur (cevap_goruldu = 0)."""
+def ogretmen_sorusunu_cevapla(soru_id, ogretmen_id, cevap, paylas=False):
+    """
+    Öğretmenin cevabını kaydeder; öğrenci için "yeni" olur (cevap_goruldu = 0).
+    paylas: True ise soru-cevap öğretmenin sınıflarındaki herkese (soranın adı olmadan) görünür.
+    """
     baglanti = baglan()
     try:
         baglanti.execute("""
             UPDATE ogretmen_sorulari
-            SET cevap = ?, cevaplayan_id = ?, cevap_zamani = ?, cevap_goruldu = 0
+            SET cevap = ?, cevaplayan_id = ?, cevap_zamani = ?, cevap_goruldu = 0, paylasildi = ?
             WHERE id = ?
-        """, (cevap, ogretmen_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), soru_id))
+        """, (cevap, ogretmen_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+              1 if paylas else 0, soru_id))
         baglanti.commit()
     finally:
         baglanti.close()
@@ -2392,5 +2398,33 @@ def sinif_projesi_adimlari(sinif_id):
                 GROUP BY y.kullanici_id)
             ORDER BY a.yol_haritasi_id, a.sira
         """, (sinif_id,)).fetchall()
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 23) SINIFLA PAYLAŞILAN SORULAR
+# ---------------------------------------------------------------------------
+
+def paylasilan_sorular(ogrenci_id):
+    """
+    Öğrencinin üye olduğu sınıfların öğretmenlerinin "sınıfla paylaş" dediği soru-cevaplar.
+    Soran öğrencinin adı GETİRİLMEZ (gizlilik): sadece soru, cevap, adım başlığı ve proje.
+    EXISTS: cevaplayan öğretmen, bu öğrencinin sınıflarından birinin öğretmeni mi?
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT s.id, s.soru, s.cevap, s.cevap_zamani, a.baslik, a.sira,
+                   k.kullanici_adi AS ogretmen_adi
+            FROM ogretmen_sorulari AS s
+            JOIN adimlar      AS a ON a.id = s.adim_id
+            JOIN kullanicilar AS k ON k.id = s.cevaplayan_id
+            WHERE s.paylasildi = 1 AND s.cevap IS NOT NULL AND EXISTS (
+                SELECT 1 FROM sinif_uyeleri u JOIN siniflar c ON c.id = u.sinif_id
+                WHERE u.ogrenci_id = ? AND c.ogretmen_id = s.cevaplayan_id)
+            ORDER BY s.cevap_zamani DESC
+            LIMIT 30
+        """, (ogrenci_id,)).fetchall()
     finally:
         baglanti.close()

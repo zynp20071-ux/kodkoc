@@ -124,16 +124,17 @@ def sahte_yapay_zeka(monkeypatch):
         cagrilar["yol_haritasi"].append(proje)
         return ORNEK_CEVAP
 
-    def sahte_ipucu(istemci, proje, baslik, icerik, onceki, soru, seviye):
-        cagrilar["ipucu"].append({"proje": proje, "onceki": list(onceki), "soru": soru, "seviye": seviye})
+    def sahte_ipucu(istemci, proje, baslik, icerik, onceki, soru, seviye, bilgi=""):
+        cagrilar["ipucu"].append({"proje": proje, "onceki": list(onceki), "soru": soru, "seviye": seviye,
+                                  "bilgi": bilgi})
         return f"Seviye {seviye} ipucu: **liste** yapısına bak."
 
-    def sahte_kod_incele(istemci, proje, baslik, icerik, kod, aciklama):
-        cagrilar["inceleme"].append({"kod": kod, "aciklama": aciklama, "baslik": baslik})
+    def sahte_kod_incele(istemci, proje, baslik, icerik, kod, aciklama, bilgi=""):
+        cagrilar["inceleme"].append({"kod": kod, "aciklama": aciklama, "baslik": baslik, "bilgi": bilgi})
         return "**İyi gidenler:** Döngün doğru.\n\n**Bakman gerekenler:**\n- **Satır 2:** Liste boşsa ne olur?"
 
-    def sahte_soru_sor(istemci, proje, baslik, icerik, konusma, soru):
-        cagrilar["soru"].append({"soru": soru, "konusma": list(konusma), "baslik": baslik})
+    def sahte_soru_sor(istemci, proje, baslik, icerik, konusma, soru, bilgi=""):
+        cagrilar["soru"].append({"soru": soru, "konusma": list(konusma), "baslik": baslik, "bilgi": bilgi})
         return f"Güzel soru! **Liste**, bir alışveriş listesi gibidir. ({len(konusma)} önceki soru)"
 
     monkeypatch.setattr(kodkoc, "yol_haritasi_iste", sahte_yol_haritasi)

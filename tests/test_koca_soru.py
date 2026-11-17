@@ -132,3 +132,28 @@ def test_gercek_soru_sor_mesaji(monkeypatch):
 
     GERCEK_SORU_SOR(None, "p", "b", "i", [], "ilk soru")
     assert "Yok, bu ilk soru." in giden["mesaj"]
+
+
+# --- Öğrenciye özel koç: öğrencinin bildikleri yapay zekâya gidiyor mu? ---
+
+def test_bildikleri_koca_iletilir(kayit_ol, sahte_yapay_zeka):
+    ali = kayit_ol("ali")
+    cevap = ali.post("/yol-haritasi", data={"proje": "Not defteri", "bilgi": "Python temel, biraz HTML"})
+    harita_id = int(cevap.headers["Location"].rsplit("/", 1)[1])
+    import re as _re
+    adim = int(_re.findall(r'id="adim-(\d+)"', ali.get(f"/yol-haritasi/{harita_id}").text)[0])
+    ali.post(f"/adim/{adim}/ipucu", data={"soru": ""})
+    ali.post(f"/adim/{adim}/soru", data={"soru": "Liste nedir?"})
+    ali.post(f"/adim/{adim}/incele", data={"kod": "print(1)"})
+    for tur in ("ipucu", "soru", "inceleme"):
+        assert sahte_yapay_zeka[tur][-1]["bilgi"] == "Python temel, biraz HTML", tur
+
+
+def test_gercek_mesajlarda_bildikleri_satiri(monkeypatch):
+    giden = []
+    monkeypatch.setattr(kodkoc, "yapay_zekaya_sor",
+                        lambda istemci, mesaj, talimat, **kw: giden.append(mesaj) or "cevap")
+    GERCEK_SORU_SOR(None, "p", "b", "i", [], "soru", bilgi="JavaScript")
+    assert "Öğrencinin bildikleri:\nJavaScript" in giden[-1]
+    GERCEK_SORU_SOR(None, "p", "b", "i", [], "soru")                     # Bilgi yoksa
+    assert "Belirtilmedi (yeni başlıyor olabilir)." in giden[-1]

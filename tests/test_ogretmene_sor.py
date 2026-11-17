@@ -201,3 +201,60 @@ def test_proje_adim_dagilimi(sinif, kayit_ol):
 
 def test_proje_yoksa_dagilim_gosterilmez(sinif):
     assert "Sınıf projesi: adım adım" not in sinif["hoca"].get(f"/ogretmen/sinif/{sinif['id']}").text
+
+
+# ---------------------------------------------------------------------------
+# Sınıfla paylaşılan sorular
+# ---------------------------------------------------------------------------
+
+def paylasarak_cevapla(s, soru_id, metin="Herkes için cevap", paylas=True):
+    veri = {"cevap": metin}
+    if paylas:
+        veri["paylas"] = "1"
+    return s["hoca"].post(f"/ogretmen/soru/{soru_id}/cevap", data=veri)
+
+
+def test_paylasilan_soru_siniftaki_herkese_gorunur_soranin_adi_gizli(sinif, kayit_ol):
+    ayse = kayit_ol("ayse")
+    ayse.post("/sinifim/katil", data={"kod": sinif["kod"]})
+    sor(sinif, "Liste ile demet farkı ne?")
+    paylasarak_cevapla(sinif, soru_idleri(sinif)[0], "Liste değişebilir, demet değişmez.")
+
+    sayfa = ayse.get("/sinifim").text
+    assert "Sınıfça sorulanlar" in sayfa
+    assert "Liste ile demet farkı ne?" in sayfa and "Liste değişebilir, demet değişmez." in sayfa
+    paylasilan = sayfa.split("Sınıfça sorulanlar")[1].split("Katıldığın sınıflar")[0]
+    assert "ali" not in paylasilan                                   # Soranın adı yok
+    assert "sınıfla paylaşıldı" in ali_sayfasi(sinif)                # Soran öğrenci bunu bilir
+
+
+def test_paylasilmayan_soru_baskasina_gorunmez(sinif, kayit_ol):
+    ayse = kayit_ol("ayse")
+    ayse.post("/sinifim/katil", data={"kod": sinif["kod"]})
+    sor(sinif, "Özel sorum")
+    paylasarak_cevapla(sinif, soru_idleri(sinif)[0], "Özel cevap", paylas=False)
+    assert "Özel sorum" not in ayse.get("/sinifim").text
+
+
+def test_paylasim_geri_alinabilir(sinif, kayit_ol):
+    ayse = kayit_ol("ayse")
+    ayse.post("/sinifim/katil", data={"kod": sinif["kod"]})
+    sor(sinif, "Geri alınacak soru")
+    soru_id = soru_idleri(sinif)[0]
+    paylasarak_cevapla(sinif, soru_id)
+    paylasarak_cevapla(sinif, soru_id, paylas=False)                 # Kutunun işareti kaldırıldı
+    assert "Geri alınacak soru" not in ayse.get("/sinifim").text
+
+
+def test_baska_ogretmenin_sinifindaki_ogrenci_paylasilani_gormez(sinif, kayit_ol):
+    sor(sinif, "Sadece bu sınıf görsün")
+    paylasarak_cevapla(sinif, soru_idleri(sinif)[0])
+    baska = kayit_ol("baskahoca", "ogretmen")
+    cevap = baska.post("/ogretmen/sinif", data={"ad": "Başka sınıf"})
+    baska_sinif = int(cevap.headers["Location"].rsplit("/", 1)[1])
+    kod = re.search(r"<strong>([A-Z0-9]{6})</strong>", baska.get(f"/ogretmen/sinif/{baska_sinif}").text).group(1)
+    mehmet = kayit_ol("mehmet")
+    mehmet.post("/sinifim/katil", data={"kod": kod})
+    assert "Sadece bu sınıf görsün" not in mehmet.get("/sinifim").text
+    # Sınıfı olmayan öğrenci de görmez
+    assert "Sadece bu sınıf görsün" not in kayit_ol("zeki").get("/sinifim").text

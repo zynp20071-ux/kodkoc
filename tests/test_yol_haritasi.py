@@ -66,7 +66,7 @@ def test_yapay_zeka_yogunken_anlasilir_mesaj(kayit_ol, monkeypatch):
     class Yogun(Exception):
         code = 503
 
-    def hata_ver(*a):
+    def hata_ver(*a, **kw):          # **kw: "bilgi=" gibi anahtar argümanları da kabul et
         raise Yogun("503 UNAVAILABLE")
 
     ali = kayit_ol("ali")

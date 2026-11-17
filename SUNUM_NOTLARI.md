@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı. 309 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular. 315 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -379,6 +379,8 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Toplu hedef | `app.py` → `toplu_hedef()`; `veritabani.py` → `toplu_hedef_koy()` |
 | Öğretmenime sor | `app.py` → `ogretmene_sor()`, `ogretmen_cevapla()`; `veritabani.py` 22. bölüm |
 | Sınıf projesi adım dağılımı | `app.py` → `proje_adim_dagilimi()`; `veritabani.py` → `sinif_projesi_adimlari()` |
+| Öğrenciye özel koç | `kodkoc.py` → `bildikleri_satiri()`; `app.py` → `ipucu()`, `kod_incele()`, `koca_soru_sor()` |
+| Sınıfla paylaşılan sorular | `veritabani.py` → `paylasilan_sorular()`; `templates/sinifim.html` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
 | Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py` |
 
@@ -462,6 +464,12 @@ Soru tablosu `adim_id` ile adımlara bağlı (yabancı anahtar). Bir adım, yol 
 
 **Sınıf projesinin "adım adım" tablosu nasıl hesaplanıyor?**
 Veritabanından her öğrencinin sınıf projesi için çıkardığı **en son** yol haritasının adımlarını (sıra, bitti mi, kaç ipucu) alıyorum: `MAX(y.id) ... GROUP BY y.kullanici_id`. Gerisi Python'da: öğrencinin "şu an bulunduğu adım", bitirmediği en küçük numaralı adım; orada 2 ya da daha fazla ipucu aldıysa "takıldı" sayılıyor. Öğretmen hangi adımda sınıfın çoğunun zorlandığını görüp o konuyu derste anlatabiliyor.
+
+**Koç öğrencinin seviyesini nereden biliyor?**
+Öğrenci yol haritası çıkarırken "Hangi dilleri / teknolojileri biliyorsun?" kutusunu dolduruyor; bu `yol_haritalari.bilgi` sütununda duruyordu ama sadece yol haritası çıkarırken kullanılıyordu. Artık ipucu, koça soru ve kod inceleme mesajlarına da "Öğrencinin bildikleri: ..." satırı ekleniyor (`bildikleri_satiri()`), yapay zekâ benzetmelerini ona göre seçiyor. Üç fonksiyona da `bilgi=""` diye **varsayılan değerli** bir parametre ekledim; böylece eski çağrılar bozulmadı. Testte sahte fonksiyonların bu bilgiyi gerçekten aldığını kontrol ediyorum.
+
+**Paylaşılan sorularda gizliliği nasıl sağladın?**
+Öğretmen cevap verirken "sınıfla paylaş" kutusunu işaretlerse soru-cevap, o öğretmenin sınıflarındaki öğrencilerin "Sınıfım" sayfasında görünüyor. Sorgu soranın adını **hiç getirmiyor**: sadece soru, cevap, adım başlığı ve öğretmenin adı. Başka öğretmenin sınıfındaki ya da hiç sınıfı olmayan öğrenci görmüyor (`EXISTS` ile cevaplayan öğretmenin sınıflarından birinde mi diye bakılıyor). Öğretmen kutunun işaretini kaldırıp tekrar gönderirse paylaşım geri alınıyor. Soran öğrenci, sorusunun paylaşıldığını kendi sayfasında görüyor.
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

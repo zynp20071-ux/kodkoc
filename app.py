@@ -980,7 +980,7 @@ def ipucu(adim_id):
     try:
         istemci = genai.Client(api_key=anahtar)
         cevap = kodkoc.ipucu_iste(istemci, adim["proje"], adim["baslik"], adim["icerik"],
-                                  [i["cevap"] for i in onceki], soru, seviye)
+                                  [i["cevap"] for i in onceki], soru, seviye, bilgi=adim["bilgi"])
     except Exception as hata:
         flash(anlasilir_hata(hata), "hata")
         return redirect(adim_adresi(adim))
@@ -1023,7 +1023,7 @@ def kod_incele(adim_id):
     try:
         istemci = genai.Client(api_key=anahtar)
         geri_bildirim = kodkoc.kod_incele(istemci, adim["proje"], adim["baslik"], adim["icerik"],
-                                          kod, aciklama)
+                                          kod, aciklama, bilgi=adim["bilgi"])
     except Exception as hata:
         flash(anlasilir_hata(hata), "hata")
         return redirect(adim_adresi(adim))
@@ -1065,7 +1065,8 @@ def koca_soru_sor(adim_id):
         istemci = genai.Client(api_key=anahtar)
         # Son 3 soru-cevabı "hafıza" olarak gönder (hepsini göndermek mesajı gereksiz uzatır)
         konusma = [(s["soru"], s["cevap"]) for s in onceki[-3:]]
-        cevap = kodkoc.soru_sor(istemci, adim["proje"], adim["baslik"], adim["icerik"], konusma, soru)
+        cevap = kodkoc.soru_sor(istemci, adim["proje"], adim["baslik"], adim["icerik"], konusma, soru,
+                                bilgi=adim["bilgi"])
     except Exception as hata:
         flash(anlasilir_hata(hata), "hata")
         return redirect(adim_adresi(adim))
@@ -1410,7 +1411,8 @@ def sinifim():
     veritabani.duyurulari_okundu_yap(aktif_id())
     g.yeni_duyuru = 0                      # Menüdeki sayı bu sayfada hemen sıfırlansın
     return render_template("sinifim.html", siniflar=veritabani.ogrencinin_siniflari(aktif_id()),
-                           duyurular=duyurular)
+                           duyurular=duyurular,
+                           paylasilan_sorular=veritabani.paylasilan_sorular(aktif_id()))
 
 
 @app.route("/sinifim/katil", methods=["POST"])
@@ -1871,8 +1873,10 @@ def ogretmen_cevapla(soru_id):
     if not cevap or len(cevap) > EN_UZUN_OGRETMEN_CEVABI:
         flash(f"Cevap 1-{EN_UZUN_OGRETMEN_CEVABI} karakter olmalı.", "hata")
         return redirect(geri)
-    veritabani.ogretmen_sorusunu_cevapla(soru_id, aktif_id(), cevap)
-    flash("Cevabın öğrenciye iletildi.", "bilgi")
+    paylas = request.form.get("paylas") == "1"      # Onay kutusu işaretliyse "1" gelir, değilse hiç gelmez
+    veritabani.ogretmen_sorusunu_cevapla(soru_id, aktif_id(), cevap, paylas)
+    flash("Cevabın öğrenciye iletildi." + (" Soru-cevap sınıflarınla da paylaşıldı (soranın adı görünmez)."
+                                           if paylas else ""), "bilgi")
     return redirect(geri)
 
 
