@@ -1,0 +1,39 @@
+{% extends "taban.html" %}
+{# Notlarım: öğrencinin adımlara yazdığı bütün notlar tek sayfada (9. hafta) #}
+
+{% block baslik %}Notlarım · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Notlarım</h1>
+    <p class="aciklama">Adımlara yazdığın notlar burada toplanır. Bir konuyu tekrar etmek istediğinde buradan ara.</p>
+
+    <form method="get" action="{{ url_for('notlarim') }}" class="arama">
+      <label for="ara" class="gizli">Notlarda ara</label>
+      <input type="search" id="ara" name="ara" placeholder="Notlarda ara… (ör. döngü)" value="{{ ara }}" maxlength="100">
+      <button type="submit">Ara</button>
+    </form>
+
+    {% if gruplar %}
+    <p class="gecmis-durum">{{ not_sayisi }} not{% if ara %} · “{{ ara }}” araması · <a href="{{ url_for('notlarim') }}">Hepsini göster</a>{% endif %}
+      · <a href="{{ url_for('notlarimi_indir') }}">Hepsini indir (.md)</a></p>
+    {% for grup in gruplar %}
+    <section class="kart not-grubu">
+      <h2><a href="{{ url_for('yol_haritasi_goster', harita_id=grup.harita_id) }}">{{ grup.proje | truncate(100) }}</a></h2>
+      {% for n in grup.notlar %}
+      <div class="not-ogesi">
+        <a href="{{ url_for('yol_haritasi_goster', harita_id=grup.harita_id) }}#adim-{{ n.adim_id }}" class="not-basligi">
+          {{ '✓ ' if n.tamamlandi }}{{ n.baslik | adim_basligi(n.sira) }}</a>
+        <p class="not-metni">{{ n.not_metni }}</p>
+      </div>
+      {% endfor %}
+    </section>
+    {% endfor %}
+    {% elif ara %}
+    <p class="aciklama">“{{ ara }}” geçen bir not bulunamadı. <a href="{{ url_for('notlarim') }}">Bütün notlar</a></p>
+    {% else %}
+    <section class="kart">
+      <p class="aciklama">Henüz not yazmadın. Bir yol haritasında adımın altındaki “Not al” kutusuna,
+        o adımda ne öğrendiğini yazabilirsin. 3 farklı adıma not yazınca “Not Defteri” rozetini kazanırsın.</p>
+    </section>
+    {% endif %}
+{% endblock %}

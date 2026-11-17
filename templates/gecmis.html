@@ -5,7 +5,8 @@
 
 {% block icerik %}
     <h1>Geçmiş yol haritaların</h1>
-    <p class="aciklama">Daha önce çıkardığın yol haritaları burada. Birine tıklayıp kaldığın yerden devam edebilirsin.</p>
+    <p class="aciklama">Daha önce çıkardığın yol haritaları burada. Birine tıklayıp kaldığın yerden devam edebilirsin.
+      Adımlara yazdığın bütün notlar <a href="{{ url_for('notlarim') }}">Notlarım</a> sayfasında.</p>
 
     {% if ozet.harita_sayisi > 0 %}
     <!-- Özet sayılar (veritabani.istatistikler fonksiyonundan) -->

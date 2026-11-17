@@ -1207,12 +1207,18 @@ ROZETLER = [
     ("not_defteri", "Not Defteri",    "3 farklı adıma not yaz.",                              "not_sayisi",      3),
     ("ilk_commit",  "İlk Commit",     "GitHub'a ilk commit'ini at ve deponu bağla.",          "commit_sayisi",   1),
     ("bitis",       "Bitiş Çizgisi",  "Bir yol haritasını baştan sona bitir.",                "biten_harita",    1),
+    ("zamaninda",   "Tam Zamanında",  "Hedef tarihi olan 2 adımı zamanında bitir.",           "zamaninda_biten", 2),
+    ("soru_soran",  "Soru Soran",     "Öğretmenine bir soru sor.",                            "ogretmen_sorusu", 1),
+    ("istikrarli",  "İstikrarlı",     "7 gün üst üste çalış.",                                "en_uzun_seri",    7),
 ]
 
 
 def rozetleri_hesapla(kullanici_id):
     """Her rozet için {ad, aciklama, kazanildi, ilerleme} listesi döndürür."""
     veri = veritabani.rozet_verileri(kullanici_id)
+    # En uzun çalışma serisi veritabanında tek sayı olarak yok; profil sayfasındaki gibi hesaplanır
+    gunler = {date.fromisoformat(gun) for gun in veritabani.calisma_gunleri(kullanici_id)}
+    veri["en_uzun_seri"] = seri_hesapla(gunler, date.today())[1]
     sonuc = []
     for anahtar, ad, aciklama, sayi_adi, hedef in ROZETLER:
         sayi = veri[sayi_adi]
@@ -1220,6 +1226,17 @@ def rozetleri_hesapla(kullanici_id):
                       "kazanildi": sayi >= hedef,
                       "ilerleme": f"{min(sayi, hedef)} / {hedef}"})
     return sonuc
+
+
+def kazanilan_rozetler(kullanici_id):
+    """Kazanılmış rozetlerin adları (küme). Bir işlemden önce ve sonra karşılaştırmak için."""
+    return {r["ad"] for r in rozetleri_hesapla(kullanici_id) if r["kazanildi"]}
+
+
+def yeni_rozetleri_bildir(onceki):
+    """İşlemden önce kazanılmış rozetlerle (onceki) şimdikileri karşılaştırır; yenileri kutlar."""
+    for ad in sorted(kazanilan_rozetler(aktif_id()) - onceki):
+        flash(f"Yeni rozet kazandın: ★ {ad}! Bütün rozetlerin Geçmiş sayfasında.", "bilgi")
 
 
 # ---------------------------------------------------------------------------
@@ -1354,8 +1371,10 @@ def ogretmene_sor(adim_id):
     if veritabani.acik_soru_sayisi(aktif_id()) >= EN_FAZLA_ACIK_SORU:
         flash(f"Cevap bekleyen {EN_FAZLA_ACIK_SORU} sorun var. Öğretmenin onları cevaplayınca yenisini sorabilirsin.", "hata")
         return redirect(adim_adresi(adim))
+    onceki = kazanilan_rozetler(aktif_id())
     veritabani.ogretmene_soru_ekle(adim_id, soru)
     flash("Sorun öğretmenine iletildi. Cevaplayınca menüde bildirim göreceksin.", "bilgi")
+    yeni_rozetleri_bildir(onceki)
     return redirect(adim_adresi(adim))
 
 
@@ -1394,9 +1413,41 @@ def not_kaydet(adim_id):
     adim = veritabani.adim_getir(adim_id, aktif_id())
     if adim is None:
         abort(404)
+    onceki = kazanilan_rozetler(aktif_id())
     veritabani.not_kaydet(adim_id, request.form.get("not_metni", "").strip())
     flash("Notun kaydedildi.", "bilgi")
+    yeni_rozetleri_bildir(onceki)
     return redirect(adim_adresi(adim))
+
+
+@app.route("/notlarim", methods=["GET"])
+@giris_gerekli
+def notlarim():
+    """GET: Öğrencinin bütün adım notları, yol haritalarına göre gruplanmış (aranabilir)."""
+    ara = request.args.get("ara", "").strip()[:100]
+    gruplar = []                                   # [{harita_id, proje, notlar: [...]}, ...]
+    for satir in veritabani.tum_notlar(aktif_id(), ara):
+        if not gruplar or gruplar[-1]["harita_id"] != satir["harita_id"]:
+            gruplar.append({"harita_id": satir["harita_id"], "proje": satir["proje"], "notlar": []})
+        gruplar[-1]["notlar"].append(satir)
+    return render_template("notlarim.html", gruplar=gruplar, ara=ara,
+                           not_sayisi=sum(len(g_["notlar"]) for g_ in gruplar))
+
+
+@app.route("/notlarim/indir", methods=["GET"])
+@giris_gerekli
+def notlarimi_indir():
+    """GET: Bütün notları tek bir Markdown (.md) dosyası olarak indirir (defter gibi saklasın diye)."""
+    satirlar = ["# KodKoç notlarım", ""]
+    son_harita = None
+    for satir in veritabani.tum_notlar(aktif_id()):
+        if satir["harita_id"] != son_harita:
+            son_harita = satir["harita_id"]
+            satirlar += [f"## {satir['proje'].splitlines()[0][:120]}", ""]
+        satirlar += [f"### {adim_basligi(satir['baslik'], satir['sira'])}", "", satir["not_metni"], ""]
+    veri = "\n".join(satirlar).encode("utf-8")
+    return send_file(io.BytesIO(veri), mimetype="text/markdown", as_attachment=True,
+                     download_name="kodkoc-notlarim.md")
 
 
 @app.route("/adim/<int:adim_id>", methods=["POST"])
@@ -1408,7 +1459,10 @@ def adim_isaretle(adim_id):
         abort(404)
 
     tamamlandi = request.form.get("tamamlandi") == "1"
+    onceki = kazanilan_rozetler(aktif_id()) if tamamlandi else None
     veritabani.adim_durumunu_degistir(adim_id, tamamlandi)
+    if tamamlandi:
+        yeni_rozetleri_bildir(onceki)
 
     # Aynı sayfaya geri dön; "#adim-5" kısmı sayfanın o adıma kaymasını sağlar
     return redirect(adim_adresi(adim))

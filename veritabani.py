@@ -1633,7 +1633,15 @@ def rozet_verileri(kullanici_id):
                 WHERE y.kullanici_id = :k AND a.not_metni IS NOT NULL)              AS not_sayisi,
               (SELECT COUNT(*) FROM koc_sorulari s JOIN adimlar a ON a.id = s.adim_id
                 JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
-                WHERE y.kullanici_id = :k)                                          AS soru_sayisi
+                WHERE y.kullanici_id = :k)                                          AS soru_sayisi,
+              -- Hedef tarihinde ya da daha önce bitirilen adımlar (tarih metinleri 'YYYY-AA-GG'
+              -- biçiminde olduğu için harf harf karşılaştırmak tarih karşılaştırmakla aynı)
+              (SELECT COUNT(*) FROM adimlar a JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                WHERE y.kullanici_id = :k AND a.tamamlandi = 1 AND a.hedef_tarih IS NOT NULL
+                  AND SUBSTR(a.tamamlanma_zamani, 1, 10) <= a.hedef_tarih)          AS zamaninda_biten,
+              (SELECT COUNT(*) FROM ogretmen_sorulari s JOIN adimlar a ON a.id = s.adim_id
+                JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                WHERE y.kullanici_id = :k)                                          AS ogretmen_sorusu
         """, {"k": kullanici_id}).fetchone())
     finally:
         baglanti.close()
@@ -2426,5 +2434,34 @@ def paylasilan_sorular(ogrenci_id):
             ORDER BY s.cevap_zamani DESC
             LIMIT 30
         """, (ogrenci_id,)).fetchall()
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 24) NOTLARIM: öğrencinin bütün adım notları tek yerde
+# ---------------------------------------------------------------------------
+
+def tum_notlar(kullanici_id, ara=""):
+    """
+    Öğrencinin not yazdığı bütün adımları, yol haritasıyla birlikte getirir (en yeni harita önce).
+    ara: notta, adım başlığında ya da projede geçmesi gereken kelime (boşsa hepsi).
+    """
+    sorgu = """
+        SELECT a.id AS adim_id, a.sira, a.baslik, a.not_metni, a.tamamlandi,
+               y.id AS harita_id, y.proje
+        FROM adimlar AS a
+        JOIN yol_haritalari AS y ON y.id = a.yol_haritasi_id
+        WHERE y.kullanici_id = ? AND a.not_metni IS NOT NULL
+    """
+    degerler = [kullanici_id]
+    if ara:
+        sorgu += """ AND (LOWER(a.not_metni) LIKE LOWER(?) OR LOWER(a.baslik) LIKE LOWER(?)
+                          OR LOWER(y.proje) LIKE LOWER(?))"""
+        degerler += [f"%{ara}%"] * 3
+    sorgu += " ORDER BY y.id DESC, a.sira"
+    baglanti = baglan()
+    try:
+        return baglanti.execute(sorgu, degerler).fetchall()
     finally:
         baglanti.close()

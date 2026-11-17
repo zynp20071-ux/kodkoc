@@ -15,7 +15,7 @@ def test_baslangicta_rozet_yok(kayit_ol):
     ali = kayit_ol("ali")
     assert kazanilanlar(ali) == set()
     sayfa = ali.get("/gecmis").text
-    assert "Rozetler" in sayfa and "(0 / 8)" in sayfa and "0 / 3" in sayfa     # İlerleme yazıyor
+    assert "Rozetler" in sayfa and "(0 / 11)" in sayfa and "0 / 3" in sayfa     # İlerleme yazıyor
 
 
 def test_ilk_adim_ve_kendi_basina(kayit_ol):
@@ -70,4 +70,4 @@ def test_ogretmen_ogrencinin_rozetlerini_gorur(kayit_ol):
     _, adimlar = yol_haritasi_cikar(ali)
     ali.post(f"/adim/{adimlar[0]}", data={"tamamlandi": "1"})
     sayfa = hoca.get(f"/ogretmen/ogrenci/{ali.kullanici['id']}").text
-    assert "(1 / 8)" in sayfa and 'class="rozet kazanildi"' in sayfa
+    assert "(1 / 11)" in sayfa and 'class="rozet kazanildi"' in sayfa

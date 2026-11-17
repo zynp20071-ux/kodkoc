@@ -242,7 +242,7 @@ Hayır. Kod `<pre>` içinde Jinja'nın otomatik kaçırmasıyla gösteriliyor; d
 Silmeden sonra `UPDATE adimlar SET sira = sira - 1 WHERE ... sira > silinen` ile arkadaki adımlar bir öne kayıyor; numaralarda boşluk kalmıyor. Başlıktaki numara da yazıdan değil `sira` sütunundan geliyor (`adim_basligi` filtresi). Commit'ler adıma `adim_id` ile bağlı olduğu için eski eşlemeler bozulmuyor. Silinen adımın commit'leri silinmiyor, çünkü GitHub'da hâlâ varlar; sadece "adıma bağlı değil" oluyorlar. Son adım silinemiyor.
 
 **Rozetler nasıl hesaplanıyor, ayrı bir tabloda mı?**
-Hayır, saklanmıyor; her seferinde mevcut verilerden **hesaplanıyor**. Böylece tutarsız olamaz (ör. adımı geri alınca rozet de gider). Tek bir sorguda 8 alt sorgu var. Örneğin "ipucu almadan biten adım" için `NOT EXISTS (SELECT 1 FROM ipuclari WHERE adim_id = a.id)` kullanılıyor.
+Hayır, saklanmıyor; her seferinde mevcut verilerden **hesaplanıyor**. Böylece tutarsız olamaz (ör. adımı geri alınca rozet de gider). Tek bir sorguda 10 alt sorgu var. Örneğin "ipucu almadan biten adım" için `NOT EXISTS (SELECT 1 FROM ipuclari WHERE adim_id = a.id)` kullanılıyor.
 
 **"Koça soru sor" ile "ipucu" arasındaki fark ne?**
 İpucu "takıldım, çözüme yaklaştır" demek; 3 seviyede gittikçe açılıyor. Soru ise "bu kavram ne, neden böyle?" gibi bir anlama sorusu. Koç benzetmeyle anlatıyor (liste = alışveriş listesi), sonunda öğrenciye küçük bir soru soruyor. İkisinde de kod yok; kod istenirse nazikçe reddediyor (gerçek Gemini ile denendi).
@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu. 326 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi. 340 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -383,8 +383,11 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Sınıfla paylaşılan sorular | `veritabani.py` → `paylasilan_sorular()`; `templates/sinifim.html` |
 | "Bugün ne yapayım?" | `app.py` → `bugun_onerisi()`, `ana_sayfa()` |
 | Sınıf raporu | `app.py` → `sinif_raporu()`, `sinif_ogrencileri()`; `templates/sinif_raporu.html` |
+| Yeni rozetler ve rozet bildirimi | `app.py` → `ROZETLER`, `rozetleri_hesapla()`, `yeni_rozetleri_bildir()`; `veritabani.py` → `rozet_verileri()` |
+| Notlarım | `app.py` → `notlarim()`, `notlarimi_indir()`; `veritabani.py` → `tum_notlar()`; `templates/notlarim.html` |
+| Demo verisi | `demo_veri.py` (`olustur` / `sil`) |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -478,6 +481,12 @@ Hayır, yapay zekâ değil; basit **kurallar**, öncelik sırasıyla: (1) hedefi
 
 **Sınıf raporunu nasıl yaptın? Kodu tekrar mı yazdın?**
 Hayır. Sınıf sayfasındaki öğrenci listesini oluşturan döngüyü `sinif_ogrencileri()` fonksiyonuna taşıdım; hem sınıf sayfası hem rapor onu kullanıyor (istatistik, takılanlar, adım dağılımı da aynı fonksiyonlar). Rapor sadece farklı bir şablon: form ve düğme yok, "Yazdır / PDF" tarayıcının yazdırma penceresini açıyor, `@media print` kuralları menüyü ve düğmeyi kâğıtta gizliyor, bölümler sayfa arasında bölünmüyor (`break-inside: avoid`).
+
+**Rozet kazanıldığını nasıl anlıyorsun? Rozetleri bir yerde saklıyor musun?**
+Hâlâ saklamıyorum, her seferinde hesaplanıyor. Adım bitirme, not yazma ve öğretmene soru sorma işlemlerinden **önce** kazanılmış rozetlerin kümesini alıyorum, işlemden **sonra** yeniden hesaplıyorum; iki kümenin farkı (`sonra - once`) yeni kazanılanlar. Onları `flash` ile bir kez kutluyorum. Adımı geri alınca bildirim yok; aynı rozet ikinci kez kutlanmıyor (testi var). Yeni rozetler: *Tam Zamanında* (hedef tarihli 2 adımı zamanında bitirmek; tarih metinleri `YYYY-AA-GG` olduğu için `SUBSTR(tamamlanma_zamani, 1, 10) <= hedef_tarih` doğrudan karşılaştırılabiliyor), *Soru Soran* (öğretmene soru) ve *İstikrarlı* (7 gün üst üste; profil sayfasındaki `seri_hesapla()` fonksiyonunu tekrar kullanıyor).
+
+**Demo verisini nasıl hazırladın?**
+`demo_veri.py` yapay zekâ kullanmadan bir öğretmen, bir sınıf ve üç farklı durumda öğrenci oluşturuyor: neredeyse bitiren, takılan (3 ipucu, geçmiş hedef, öğretmene soru) ve hiç başlamayan. Tarihleri geçmişe alıyor ki seri, takvim ve "son 7 gün" sayıları gerçekçi görünsün. Demo hesaplar zaten varsa ikinci kez kurmuyor, kısa şifre kabul etmiyor; `sil` komutu hesapları `hesap_sil()` ile (her şeyleriyle) siliyor ve gerçek hesaplara dokunmuyor (testi var).
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

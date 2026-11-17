@@ -106,6 +106,8 @@ Yazılıma yeni başlayanlara **kodu yazmadan** yol gösteren yapay zekâ koçu.
 | `templates/_rozetler.html` | Rozet listesi (Geçmiş ve öğretmenin öğrenci sayfasına `include` ile eklenir) |
 | `templates/profil.html` | Profil: çalışma serisi, etkinlik takvimi, şifre değiştirme |
 | `test_calistir.bat`, `pytest.ini` | Testleri tek tıkla çalıştırma |
+| `templates/notlarim.html` | Öğrenci: bütün adım notları, arama ve .md olarak indirme |
+| `demo_veri.py` | Sunum için örnek öğretmen, sınıf ve öğrenciler (`olustur` / `sil`) |
 | `SUNUM_NOTLARI.md` | Sunum için demo akışı, özelliklerin kodda yeri, olası sorular |
 | `CALISMA_SORULARI.md` | Kendi kendine çalışma: 25 soru (cevaplar gizli) ve 3 alıştırma |
 | `static/style.css` | Sayfanın tasarımı |
@@ -150,6 +152,7 @@ ziyaretçiye gösterilmez, yol haritaları `.md` dosyasına yazılmaz. Her modda
 `veritabani.py` içindeki `Baglanti` sınıfı yer tutucuları (`?` → `%s`) ve farklı yazımları çevirir.
 Bilgisayardaki verileri sunucuya aktarmak için: `DATABASE_URL` ayarlıyken `python tasima.py kodkoc.db`
 (hedef veritabanı boşsa çalışır, id'ler ve şifreler aynen taşınır).
+Sunum için örnek veri: `python demo_veri.py olustur <şifre>` (silmek için `sil <şifre>`).
 
 **Render + Neon ile kurulum:** Veritabanı Neon'da (neon.tech, ücretsiz PostgreSQL), uygulama Render'da.
 Depodaki `render.yaml` uygulamayı tanımlar: Render'da *New → Blueprint* seçip GitHub deposunu bağlamak
@@ -182,3 +185,4 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Öğretmenime sor, sınıf projesinin adım adım dağılımı
 - [x] 9. hafta: Öğrencinin bildiklerine göre koç, sınıfla paylaşılan sorular
 - [x] 9. hafta: "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu
+- [x] 9. hafta: Üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi
