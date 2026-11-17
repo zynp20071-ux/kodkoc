@@ -30,6 +30,7 @@
           </span>
           <span class="gecmis-durum">{{ harita.tamamlanan }} / {{ harita.toplam }} adım · %{{ harita.yuzde }}</span>
           {% endif %}
+          {% if harita.puan %}<span class="puan-rozeti" title="Değerlendirmen">★ {{ harita.puan }}/5</span>{% endif %}
           {% if harita.yorum_sayisi %}
           <span class="yorum-rozeti">{{ harita.yorum_sayisi }} yorum</span>
           {% endif %}

@@ -480,6 +480,13 @@ def hazirla():
         # Bilerek yabancı anahtar (REFERENCES) değil: sınıf silinince yol haritası
         # öğrencinin olarak kalmalı; o zaman bu sütunu boşaltıyoruz (sinif_sil'e bak).
         sutun_yoksa_ekle(baglanti, "yol_haritalari", "sinif_id", "INTEGER")
+        # Hedef tarihi kim koydu? "ogretmen" ya da "ogrenci" (eski kayıtlarda boş = öğretmen)
+        sutun_yoksa_ekle(baglanti, "adimlar", "hedef_koyan", "TEXT")
+        # Öğretmenin yol haritası değerlendirmesi: 1-5 puan, kısa geri bildirim, ne zaman, kim
+        sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_puan", "INTEGER")
+        sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_metin", "TEXT")
+        sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_zamani", "TEXT")
+        sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendiren_id", "INTEGER")
 
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
@@ -628,7 +635,7 @@ def tum_yol_haritalari(kullanici_id, ara="", durum="hepsi"):
     """
     # Sorguyu parça parça kuruyoruz; değerleri yine "?" ile güvenli şekilde veriyoruz.
     sorgu = """
-        SELECT y.id, y.proje, y.olusturma_zamani,
+        SELECT y.id, y.proje, y.olusturma_zamani, y.degerlendirme_puan,
                COUNT(a.id)                    AS toplam_adim,
                COALESCE(SUM(a.tamamlandi), 0) AS tamamlanan_adim,
                (SELECT COUNT(*) FROM ogretmen_yorumlari o
@@ -1099,6 +1106,9 @@ def sinif_ozeti(sinif_id):
                    (SELECT COUNT(*) FROM adimlar a WHERE a.tamamlandi = 1 AND a.yol_haritasi_id =
                       (SELECT MAX(y.id) FROM yol_haritalari y
                         WHERE y.kullanici_id = k.id AND y.sinif_id = u.sinif_id)) AS proje_biten,
+                   (SELECT y.degerlendirme_puan FROM yol_haritalari y WHERE y.id =
+                      (SELECT MAX(y2.id) FROM yol_haritalari y2
+                        WHERE y2.kullanici_id = k.id AND y2.sinif_id = u.sinif_id)) AS proje_puan,
                    -- Hedef tarihi geçmiş ama bitmemiş adım sayısı
                    (SELECT COUNT(*) FROM adimlar a
                      JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
@@ -2003,11 +2013,15 @@ def hesap_sil(kullanici_id, sifre):
 # 18) HEDEF TARİHLER VE HAFTALIK ÖZET
 # ---------------------------------------------------------------------------
 
-def hedef_tarih_ayarla(adim_id, tarih):
-    """Adımın hedef tarihini ayarlar ("2026-11-21"); tarih None ise hedefi kaldırır."""
+def hedef_tarih_ayarla(adim_id, tarih, koyan="ogretmen"):
+    """
+    Adımın hedef tarihini ayarlar ("2026-11-21"); tarih None ise hedefi kaldırır.
+    koyan: "ogretmen" ya da "ogrenci" (öğrenci, öğretmenin koyduğu tarihi değiştiremez).
+    """
     baglanti = baglan()
     try:
-        baglanti.execute("UPDATE adimlar SET hedef_tarih = ? WHERE id = ?", (tarih, adim_id))
+        baglanti.execute("UPDATE adimlar SET hedef_tarih = ?, hedef_koyan = ? WHERE id = ?",
+                         (tarih, koyan if tarih else None, adim_id))
         baglanti.commit()
     finally:
         baglanti.close()
@@ -2119,3 +2133,31 @@ def sinif_etkinlik_akisi(sinif_id, sinir=20):
         return baglanti.execute(sorgu, {"s": sinif_id}).fetchall()
     finally:
         baglanti.close()
+
+# ---------------------------------------------------------------------------
+# 20) ÖĞRETMEN DEĞERLENDİRMESİ
+# ---------------------------------------------------------------------------
+
+def yol_haritasi_degerlendir(harita_id, ogretmen_id, puan, metin):
+    """
+    Öğretmenin yol haritası değerlendirmesini kaydeder (puan 1-5, kısa metin).
+    puan None ise değerlendirme kaldırılır. (Yetki kontrolü app.py'de yapılır.)
+    """
+    zaman = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if puan else None
+    baglanti = baglan()
+    try:
+        baglanti.execute("""
+            UPDATE yol_haritalari
+            SET degerlendirme_puan = ?, degerlendirme_metin = ?, degerlendirme_zamani = ?,
+                degerlendiren_id = ?
+            WHERE id = ?
+        """, (puan, metin if puan else None, zaman, ogretmen_id if puan else None, harita_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def degerlendiren_adi(kullanici_id):
+    """Değerlendirmeyi yapan öğretmenin adı (hesap silindiyse None)."""
+    satir = kullanici_getir(kullanici_id) if kullanici_id else None
+    return satir["kullanici_adi"] if satir else None

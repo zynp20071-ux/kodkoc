@@ -1183,3 +1183,28 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 .etkinlik-akisi li:first-child { border-top: none; }
 .etkinlik-akisi .gecmis-durum { min-width: 120px; }
 .etkinlik-adim strong { color: var(--yesil); }
+/* --- Öğretmen değerlendirmesi: yıldızlar, puan rozeti; öğretmen panelindeki sınıf özeti --- */
+.degerlendirme {
+  background: var(--yesil-acik);
+  color: var(--yesil-yazi);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.degerlendirme .ipucu-etiket { color: var(--yesil-yazi); }
+.yildizlar { font-size: 22px; margin: 4px 0; letter-spacing: 2px; }
+.yildizlar .dolu { color: var(--vurgu); }
+.yildizlar .bos { color: var(--cizgi); }
+.puan-yazi { font-size: 14px; font-weight: 700; margin-left: 8px; letter-spacing: 0; }
+.degerlendirme-metni { margin: 6px 0; white-space: pre-line; }
+.degerlendirme-formu { margin: 8px 0 16px; }
+.puan-rozeti {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--vurgu-acik);
+  color: var(--vurgu-koyu);
+}
+.sinif-ozeti { display: block; font-size: 14px; color: var(--yumusak); margin-top: 4px; }

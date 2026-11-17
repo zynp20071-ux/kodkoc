@@ -817,6 +817,8 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
             "tamamlandi": bool(satir["tamamlandi"]),
             "hedef_tarih": satir["hedef_tarih"],
             "hedef_durumu": hedef_durumu(satir["hedef_tarih"], satir["tamamlandi"], bugun),
+            # Eski kayıtlarda boş: öğretmen koymuş sayılır (öğrenci değiştiremesin)
+            "hedef_koyan": satir["hedef_koyan"] or ("ogretmen" if satir["hedef_tarih"] else None),
             "not_metni": satir["not_metni"] or "",
             "ipuclari": adim_ipuclari,
             "ipucu_hakki_var": len(adim_ipuclari) < EN_FAZLA_IPUCU,
@@ -859,6 +861,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
                            en_uzun_soru=EN_UZUN_SORU,
                            ogretmen_gorunumu=ogretmen_gorunumu,
                            bugun=bugun.isoformat(),
+                           degerlendiren=veritabani.degerlendiren_adi(harita["degerlendiren_id"]),
                            commitler=commitler,
                            yeni_yorum_idleri=yeni_yorum_idleri)
 
@@ -1268,6 +1271,34 @@ def hesabi_sil():
     return redirect(url_for("giris"))
 
 
+@app.route("/adim/<int:adim_id>/hedef", methods=["POST"])
+@giris_gerekli
+def kendi_hedefim(adim_id):
+    """
+    POST: Öğrenci kendi adımına hedef tarih koyar ya da kaldırır (kendi planını yapsın diye).
+    Öğretmenin koyduğu hedefi DEĞİŞTİREMEZ: öğretmen tarihi bir sebeple koymuştur.
+    """
+    adim = veritabani.adim_getir(adim_id, aktif_id())       # Sadece kendi adımı
+    if adim is None:
+        abort(404)
+    if adim["hedef_tarih"] and (adim["hedef_koyan"] or "ogretmen") == "ogretmen":
+        flash("Bu hedefi öğretmenin koydu; değiştirmek için öğretmenine sor.", "hata")
+        return redirect(adim_adresi(adim))
+
+    metin = request.form.get("tarih", "").strip()
+    if not metin:
+        veritabani.hedef_tarih_ayarla(adim_id, None)
+        flash("Hedefin kaldırıldı.", "bilgi")
+        return redirect(adim_adresi(adim))
+    tarih, hata = hedef_tarihi_oku(metin)
+    if hata:
+        flash(hata, "hata")
+        return redirect(adim_adresi(adim))
+    veritabani.hedef_tarih_ayarla(adim_id, tarih.isoformat(), "ogrenci")
+    flash(f"Hedefin {tarih.strftime('%d.%m.%Y')}. Başarabilirsin!", "bilgi")
+    return redirect(adim_adresi(adim))
+
+
 @app.route("/adim/<int:adim_id>/not", methods=["POST"])
 @giris_gerekli
 def not_kaydet(adim_id):
@@ -1316,6 +1347,7 @@ def gecmis():
             "yuzde": ilerleme_hesapla(satir["tamamlanan_adim"], satir["toplam_adim"]),
             "yorum_sayisi": satir["yorum_sayisi"],
             "yeni_yorum_sayisi": satir["yeni_yorum_sayisi"],
+            "puan": satir["degerlendirme_puan"],             # Öğretmenin değerlendirmesi (1-5)
         })
     return render_template("gecmis.html", haritalar=haritalar, ara=ara, durum=durum,
                            ozet=veritabani.istatistikler(aktif_id()),
@@ -1376,8 +1408,19 @@ def siniftan_ayril(sinif_id):
 @ogretmen_gerekli
 def ogretmen_paneli():
     """GET: Öğretmenin sınıflarını listeler ve yeni sınıf açma formunu gösterir."""
-    return render_template("ogretmen_paneli.html",
-                           siniflar=veritabani.ogretmenin_siniflari(aktif_id()))
+    siniflar = []
+    for sinif in veritabani.ogretmenin_siniflari(aktif_id()):
+        ozet = veritabani.sinif_ozeti(sinif["id"])
+        baslayan = [o for o in ozet if o["toplam_adim"] > 0]
+        siniflar.append({
+            **dict(sinif),
+            # Ortalama ilerleme: sadece yol haritası olan öğrencilerin ortalaması
+            "ortalama": round(sum(ilerleme_hesapla(o["biten_adim"], o["toplam_adim"]) for o in baslayan)
+                              / len(baslayan)) if baslayan else 0,
+            "geciken": sum(o["geciken_adim"] for o in ozet),
+            "baslamayan": len(ozet) - len(baslayan),
+        })
+    return render_template("ogretmen_paneli.html", siniflar=siniflar)
 
 
 @app.route("/ogretmen/sinif", methods=["POST"])
@@ -1468,6 +1511,7 @@ def sinif_detay(sinif_id):
             # Sınıf projesi: bu sınıfın projesi için çıkardığı yol haritası ve ilerlemesi
             "proje_harita_id": satir["proje_harita_id"],
             "proje_yuzde": ilerleme_hesapla(satir["proje_biten"], satir["proje_toplam"]),
+            "proje_puan": satir["proje_puan"],
             "son_etkinlik": satir["son_etkinlik"] or None,   # '' ise "henüz yok"
         })
 
@@ -1613,6 +1657,7 @@ def ogrenci_detay(ogrenci_id, gecici_sifre=None):
             "yuzde": ilerleme_hesapla(satir["tamamlanan_adim"], satir["toplam_adim"]),
             "yorum_sayisi": satir["yorum_sayisi"],
             "yeni_yorum_sayisi": satir["yeni_yorum_sayisi"],
+            "puan": satir["degerlendirme_puan"],             # Öğretmenin değerlendirmesi (1-5)
         })
     # "Geri" bağlantısı: adreste ?sinif=3 varsa ve o sınıf bu öğretmeninse sınıfa dön,
     # yoksa panele dön. type=int: sayı olmayan değerleri yok sayar.
@@ -1689,6 +1734,22 @@ def yorum_yaz(ogrenci_id, adim_id):
     return redirect(geri)
 
 
+def hedef_tarihi_oku(metin):
+    """
+    Formdan gelen tarihi kontrol eder. (tarih, None) ya da (None, hata mesajı) döndürür.
+    Tarayıcının tarih kutusu "2026-11-21" gönderir; yine de gerçekten tarih mi diye bakıyoruz
+    ve bugünden en fazla bir yıl önce/sonra olmasına izin veriyoruz.
+    """
+    try:
+        tarih = date.fromisoformat(metin)
+    except ValueError:
+        return None, "Tarihi anlayamadım."
+    bugun = date.today()
+    if not bugun - timedelta(days=365) <= tarih <= bugun + timedelta(days=365):
+        return None, "Hedef tarih bugünden en fazla bir yıl önce ya da sonra olabilir."
+    return tarih, None
+
+
 @app.route("/ogretmen/ogrenci/<int:ogrenci_id>/adim/<int:adim_id>/hedef", methods=["POST"])
 @ogretmen_gerekli
 def hedef_tarih_koy(ogrenci_id, adim_id):
@@ -1710,17 +1771,46 @@ def hedef_tarih_koy(ogrenci_id, adim_id):
         veritabani.hedef_tarih_ayarla(adim_id, None)
         flash("Hedef tarih kaldırıldı.", "bilgi")
         return redirect(geri)
-    try:
-        tarih = date.fromisoformat(metin)
-    except ValueError:
-        flash("Tarihi anlayamadım.", "hata")
+    tarih, hata = hedef_tarihi_oku(metin)
+    if hata:
+        flash(hata, "hata")
         return redirect(geri)
-    bugun = date.today()
-    if not bugun - timedelta(days=365) <= tarih <= bugun + timedelta(days=365):
-        flash("Hedef tarih bugünden en fazla bir yıl önce ya da sonra olabilir.", "hata")
-        return redirect(geri)
-    veritabani.hedef_tarih_ayarla(adim_id, tarih.isoformat())
+    veritabani.hedef_tarih_ayarla(adim_id, tarih.isoformat(), "ogretmen")
     flash(f"Hedef tarih {tarih.strftime('%d.%m.%Y')} olarak kaydedildi. Öğrenci ana sayfasında görecek.", "bilgi")
+    return redirect(geri)
+
+
+EN_UZUN_DEGERLENDIRME = 1000
+
+
+@app.route("/ogretmen/ogrenci/<int:ogrenci_id>/yol-haritasi/<int:harita_id>/degerlendir", methods=["POST"])
+@ogretmen_gerekli
+def degerlendir(ogrenci_id, harita_id):
+    """
+    POST: Öğretmen öğrencinin yol haritasına 1-5 puan ve kısa geri bildirim verir.
+    Puan boş gönderilirse değerlendirme kaldırılır.
+    """
+    if not veritabani.ogretmen_gorebilir_mi(aktif_id(), ogrenci_id):
+        abort(404)
+    harita, _ = veritabani.yol_haritasi_getir(harita_id, ogrenci_id)   # Gerçekten bu öğrencinin mi?
+    if harita is None:
+        abort(404)
+    geri = url_for("ogrenci_yol_haritasi", ogrenci_id=ogrenci_id, harita_id=harita_id) + "#degerlendirme"
+
+    puan_metni = request.form.get("puan", "").strip()
+    metin = request.form.get("metin", "").strip()
+    if not puan_metni:
+        veritabani.yol_haritasi_degerlendir(harita_id, aktif_id(), None, None)
+        flash("Değerlendirme kaldırıldı.", "bilgi")
+        return redirect(geri)
+    if puan_metni not in {"1", "2", "3", "4", "5"}:
+        flash("Puan 1 ile 5 arasında olmalı.", "hata")
+        return redirect(geri)
+    if len(metin) > EN_UZUN_DEGERLENDIRME:
+        flash(f"Geri bildirim en fazla {EN_UZUN_DEGERLENDIRME} karakter olabilir.", "hata")
+        return redirect(geri)
+    veritabani.yol_haritasi_degerlendir(harita_id, aktif_id(), int(puan_metni), metin or None)
+    flash("Değerlendirme kaydedildi. Öğrenci yol haritasının en üstünde görecek.", "bilgi")
     return redirect(geri)
 
 

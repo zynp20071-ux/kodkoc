@@ -27,6 +27,14 @@
           <span>
             <span class="gecmis-proje">{{ sinif.ad }}</span>
             <span class="gecmis-durum">{{ sinif.ogrenci_sayisi }} öğrenci · Açılış: {{ sinif.olusturma_zamani | tarih }}</span>
+            {% if sinif.ogrenci_sayisi %}
+            <!-- Sınıfın kısa özeti: ortalama ilerleme, başlamayanlar, geciken adımlar -->
+            <span class="sinif-ozeti">
+              Ortalama ilerleme %{{ sinif.ortalama }}
+              {% if sinif.baslamayan %}· {{ sinif.baslamayan }} öğrenci başlamadı{% endif %}
+              {% if sinif.geciken %}· <span class="hedef-etiketi hedef-gecikti">{{ sinif.geciken }} geciken adım</span>{% endif %}
+            </span>
+            {% endif %}
           </span>
           <span class="kod-rozeti" title="Katılım kodu">{{ sinif.katilim_kodu }}</span>
         </a>

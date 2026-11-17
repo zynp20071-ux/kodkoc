@@ -21,6 +21,40 @@
       <!-- Öğrencinin anlattığı proje -->
       <div class="proje-ozeti">{{ harita.proje }}</div>
 
+      {% if harita.degerlendirme_puan %}
+      <!-- Öğretmenin değerlendirmesi: 1-5 puan (yıldızla) ve kısa geri bildirim -->
+      <section class="degerlendirme" id="degerlendirme">
+        <p class="ipucu-etiket">Öğretmen değerlendirmesi{% if degerlendiren %} · {{ degerlendiren }}{% endif %}</p>
+        <p class="yildizlar" aria-label="5 üzerinden {{ harita.degerlendirme_puan }}">
+          {%- for i in range(1, 6) %}<span class="{{ 'dolu' if i <= harita.degerlendirme_puan else 'bos' }}" aria-hidden="true">★</span>{% endfor -%}
+          <span class="puan-yazi">{{ harita.degerlendirme_puan }} / 5</span>
+        </p>
+        {% if harita.degerlendirme_metin %}<p class="degerlendirme-metni">{{ harita.degerlendirme_metin }}</p>{% endif %}
+        <span class="gecmis-durum">{{ harita.degerlendirme_zamani | tarih }}</span>
+      </section>
+      {% endif %}
+
+      {% if ogretmen_gorunumu %}
+      <!-- Öğretmen: yol haritasını değerlendir (puan boş bırakılırsa değerlendirme kaldırılır) -->
+      <details class="adim-araclar degerlendirme-formu" {% if not harita.degerlendirme_puan %}id="degerlendirme"{% endif %}>
+        <summary>{{ 'Değerlendirmeyi değiştir' if harita.degerlendirme_puan else 'Yol haritasını değerlendir' }}</summary>
+        <form method="post" action="{{ url_for('degerlendir', ogrenci_id=ogretmen_gorunumu.ogrenci_id, harita_id=harita.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label for="puan">Puan</label>
+          <select id="puan" name="puan">
+            <option value="">— (değerlendirme yok)</option>
+            {% for i in range(5, 0, -1) %}
+            <option value="{{ i }}" {% if harita.degerlendirme_puan == i %}selected{% endif %}>{{ i }} / 5</option>
+            {% endfor %}
+          </select>
+          <label for="degerlendirme-metni">Geri bildirim <span class="istege-bagli">(isteğe bağlı)</span></label>
+          <textarea id="degerlendirme-metni" name="metin" rows="3" maxlength="1000"
+                    placeholder="Örnek: Dosyaya kaydetme kısmını çok iyi çözmüşsün. Hata durumlarını da düşünmeye devam et.">{{ harita.degerlendirme_metin or '' }}</textarea>
+          <button type="submit" class="ikincil">Kaydet</button>
+        </form>
+      </details>
+      {% endif %}
+
       <!-- Yazdır / PDF: tarayıcının yazdırma penceresini açar; "PDF olarak kaydet" de oradan seçilir.
            Kâğıtta neyin görüneceğini style.css'teki @media print kuralları belirler.
            JavaScript gerektirdiği için gizli başlar, betik çalışınca görünür. -->
@@ -132,7 +166,7 @@
         {% if adim.hedef_durumu %}
         <!-- Öğretmenin koyduğu hedef tarih. Renk duruma göre: gecikti / yaklaşıyor / var / tamam -->
         <p class="hedef-etiketi hedef-{{ adim.hedef_durumu }}">
-          Hedef: {{ adim.hedef_tarih | gun }}
+          {{ 'Hedefin' if adim.hedef_koyan == 'ogrenci' and not ogretmen_gorunumu else ('Öğrencinin hedefi' if adim.hedef_koyan == 'ogrenci' else 'Hedef') }}: {{ adim.hedef_tarih | gun }}
           {% if adim.hedef_durumu == 'gecikti' %}· Gecikti
           {% elif adim.hedef_durumu == 'yaklasiyor' %}· Yaklaşıyor{% endif %}
         </p>
@@ -242,7 +276,7 @@
             {% if not adim.tamamlandi %}
             <!-- Hedef tarih: type="date" tarayıcının kendi takvimini açar, değeri "2026-11-21" biçiminde gönderir -->
             <details>
-              <summary>{{ 'Hedef tarihi değiştir' if adim.hedef_tarih else 'Hedef tarih koy' }}</summary>
+              <summary>{{ 'Hedef tarihi değiştir' if adim.hedef_koyan == 'ogretmen' else ('Öğrencinin hedefini değiştir' if adim.hedef_tarih else 'Hedef tarih koy') }}</summary>
               <form method="post" action="{{ url_for('hedef_tarih_koy', ogrenci_id=ogretmen_gorunumu.ogrenci_id, adim_id=adim.id) }}">
                 <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
                 <label for="hedef-{{ adim.id }}">Bu adım ne zamana kadar bitsin?</label>
@@ -308,6 +342,20 @@
           </details>
           {% else %}
           <p class="ipucu-bitti">Bu adımın bütün kod inceleme haklarını kullandın.</p>
+          {% endif %}
+
+          {% if not adim.tamamlandi and adim.hedef_koyan != 'ogretmen' %}
+          <!-- Öğrencinin kendi hedefi. Öğretmen bir tarih koyduysa bu form hiç görünmez. -->
+          <details>
+            <summary>{{ 'Hedefimi değiştir' if adim.hedef_tarih else 'Kendime hedef koy' }}</summary>
+            <form method="post" action="{{ url_for('kendi_hedefim', adim_id=adim.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <label for="kendi-hedef-{{ adim.id }}">Bu adımı ne zamana kadar bitirmek istiyorsun?</label>
+              <input type="date" id="kendi-hedef-{{ adim.id }}" name="tarih" value="{{ adim.hedef_tarih or '' }}" min="{{ bugun }}">
+              <button type="submit" class="ikincil">Kaydet</button>
+              <p class="ipucu-yazi">Küçük ve yakın hedefler daha kolay tutulur. Kaldırmak için tarihi silip kaydet.</p>
+            </form>
+          </details>
           {% endif %}
 
           <details {% if adim.not_metni %}open{% endif %}>

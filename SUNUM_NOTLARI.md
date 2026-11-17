@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı. 264 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti. 282 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -372,8 +372,11 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Haftalık özet | `app.py` → `hafta_basi()`, `ana_sayfa()`; `veritabani.py` → `haftalik_ozet()` |
 | Sınıf projesi | `app.py` → `sinif_projesi()`, `sinif_projesi_bul()`, `yol_haritasi()`; `veritabani.py` 19. bölüm |
 | Son etkinlikler akışı | `veritabani.py` → `sinif_etkinlik_akisi()`; `templates/sinif_detay.html` |
+| Öğretmen değerlendirmesi | `app.py` → `degerlendir()`; `veritabani.py` 20. bölüm |
+| Öğrencinin kendi hedefi | `app.py` → `kendi_hedefim()`, `hedef_tarihi_oku()` |
+| Öğretmen paneli özeti | `app.py` → `ogretmen_paneli()` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -434,6 +437,12 @@ Evet, profil sayfasından. Kişisel verinin sahibi kullanıcı; istediği zaman 
 
 **"Son etkinlikler" listesini nasıl yaptın?**
 Altı ayrı tablodan (yol haritaları, biten adımlar, ipuçları, sorular, incelemeler, commit'ler) `UNION ALL` ile aynı biçimde satırlar üretip `ORDER BY zaman DESC LIMIT 20` ile en yeni 20'yi alıyorum. Her satırda olayın türü (`'ipucu'`, `'adim'`...) metin olarak var; şablon buna göre "ipucu aldı", "bir adımı bitirdi" yazıyor. `UNION`'da bütün SELECT'lerin sütun sayısı ve sırası aynı olmalı. Boş bir sütun için `CAST(NULL AS INTEGER)` yazdım, çünkü PostgreSQL boş değerin tipini kendisi bilemiyor.
+
+**Öğrenci kendine hedef koyabiliyor mu? Öğretmenin hedefini değiştirebilir mi?**
+Koyabiliyor; kendi planını yapması için. Ama her adımda tek bir hedef tarih var ve `hedef_koyan` sütunu kimin koyduğunu tutuyor (`"ogretmen"` / `"ogrenci"`). Öğretmenin koyduğu hedefi öğrenci değiştiremiyor, kaldıramıyor: form hiç görünmüyor, elle gönderse de sunucu reddediyor. Öğretmen ise öğrencinin hedefini değiştirebiliyor; o zaman hedef "öğretmenin" oluyor. Eski kayıtlarda bu sütun boş; onları öğretmenin saydım, çünkü bu özellikten önce sadece öğretmen hedef koyabiliyordu. Tarih kontrolü iki yerde aynı olsun diye `hedef_tarihi_oku()` fonksiyonuna aldım (kod tekrarı yok).
+
+**Öğretmen puanı nasıl saklanıyor? Puanı formdan nasıl kontrol ediyorsun?**
+`yol_haritalari` tablosunda dört sütun: puan, metin, zaman, değerlendiren öğretmen. Formdaki açılır kutu 1-5 gönderiyor ama formdan gelene güvenmiyorum: değer tam olarak `"1"`..`"5"` değilse (`"6"`, `"4.5"`, `"abc"`) kaydedilmiyor. Puan boş gönderilirse değerlendirme kaldırılıyor. Öğrenci yol haritasının en üstünde yıldızlarla görüyor; ekran okuyucular için `aria-label="5 üzerinden 4"` var, yıldızlar `aria-hidden`.
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

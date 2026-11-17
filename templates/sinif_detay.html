@@ -134,6 +134,7 @@
             <td>
               {% if o.proje_harita_id %}
               <a href="{{ url_for('ogrenci_yol_haritasi', ogrenci_id=o.id, harita_id=o.proje_harita_id) }}">%{{ o.proje_yuzde }}</a>
+              {% if o.proje_puan %}<span class="puan-rozeti" title="Değerlendirmen">★ {{ o.proje_puan }}</span>{% endif %}
               {% else %}<span class="gecmis-durum">Başlamadı</span>{% endif %}
             </td>
             {% endif %}
