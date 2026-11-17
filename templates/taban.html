@@ -41,7 +41,7 @@
       <a href="{{ url_for('ana_sayfa') }}">Yeni yol haritası</a>
       <a href="{{ url_for('gecmis') }}">Geçmiş{% if g.okunmamis %}
         <!-- Görülmemiş öğretmen yorumu sayısı -->
-        <span class="menu-rozeti" title="{{ g.okunmamis }} yeni öğretmen yorumu">{{ g.okunmamis }}</span>{% endif %}</a>
+        <span class="menu-rozeti" title="{{ g.okunmamis }} yeni öğretmen yorumu ya da değerlendirmesi">{{ g.okunmamis }}</span>{% endif %}</a>
       {% if g.kullanici.rol != 'ogretmen' %}
       <a href="{{ url_for('sinifim') }}">Sınıfım{% if g.yeni_duyuru %}
         <!-- Görülmemiş öğretmen duyurusu sayısı -->

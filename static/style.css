@@ -1208,3 +1208,10 @@ button.cikis:hover { color: var(--vurgu); background: none; }
   color: var(--vurgu-koyu);
 }
 .sinif-ozeti { display: block; font-size: 14px; color: var(--yumusak); margin-top: 4px; }
+
+/* --- Toplu hedef formu (sınıf projesi bölümünde) --- */
+.toplu-hedef { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--cizgi); }
+.toplu-hedef .satir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.toplu-hedef .satir label { margin: 0; }
+.toplu-hedef input[type="number"] { width: 5em; }
+.toplu-hedef .satir button { margin-top: 0; }

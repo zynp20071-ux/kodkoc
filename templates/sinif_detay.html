@@ -25,6 +25,21 @@
         <button type="submit" class="ikincil">Kaydet</button>
         <p class="ipucu-yazi">Öğrenciler ana sayfalarında "Bu projeyle başla" düğmesini görür. Her öğrenci kendi yol haritasını çıkarır; tabloda "Sınıf projesi" sütununda ilerlemelerini görürsün. Kaldırmak için metni silip kaydet.</p>
       </form>
+      {% if sinif.proje %}
+      <!-- Toplu hedef: bütün sınıfın aynı numaralı adımına tek seferde tarih -->
+      <form method="post" action="{{ url_for('toplu_hedef', sinif_id=sinif.id) }}" class="toplu-hedef">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <p class="ipucu-etiket">Bütün sınıfa hedef koy</p>
+        <div class="satir">
+          <label for="toplu-sira">Adım</label>
+          <input type="number" id="toplu-sira" name="sira" min="1" max="50" value="1" required>
+          <label for="toplu-tarih">Tarih</label>
+          <input type="date" id="toplu-tarih" name="tarih" required>
+          <button type="submit" class="ikincil">Hedefi koy</button>
+        </div>
+        <p class="ipucu-yazi">Sınıf projesi için yol haritası çıkarmış herkesin o numaralı adımına aynı tarih konur. Öğrencilerin başka projelerine dokunulmaz.</p>
+      </form>
+      {% endif %}
     </details>
 
     {% if takilanlar %}

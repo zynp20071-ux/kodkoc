@@ -209,7 +209,7 @@ def kullaniciyi_yukle():
     g.okunmamis = 0
     g.yeni_duyuru = 0             # Görülmemiş sınıf duyurusu sayısı ("Sınıfım" yanındaki rozet)
     if g.kullanici and g.kullanici["rol"] == "ogrenci":
-        g.okunmamis = veritabani.okunmamis_yorum_sayisi(kullanici_id)
+        g.okunmamis = veritabani.okunmamis_bildirim_sayisi(kullanici_id)   # Yorum + değerlendirme
         g.yeni_duyuru = veritabani.okunmamis_duyuru_sayisi(kullanici_id)
 
     # Öğretmen şifreyi sıfırladıysa öğrenci geçici şifreyle girmiştir. Geçici şifreyi
@@ -770,11 +770,14 @@ def yol_haritasi_goster(harita_id):
     # Öğrenci sayfayı açtı: yeni yorumları "okundu" yap, menüdeki sayıyı güncelle.
     # Hangilerinin yeni olduğunu da sayfaya iletiyoruz ki bir kereliğine "Yeni" yazsın.
     yeni_yorumlar = veritabani.yorumlari_okundu_yap(harita_id)
-    g.okunmamis = veritabani.okunmamis_yorum_sayisi(aktif_id())
-    return yol_haritasi_sayfasi(harita, adim_satirlari, yeni_yorum_idleri=set(yeni_yorumlar))
+    yeni_degerlendirme = veritabani.degerlendirmeyi_goruldu_yap(harita_id)
+    g.okunmamis = veritabani.okunmamis_bildirim_sayisi(aktif_id())
+    return yol_haritasi_sayfasi(harita, adim_satirlari, yeni_yorum_idleri=set(yeni_yorumlar),
+                                yeni_degerlendirme=yeni_degerlendirme)
 
 
-def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yorum_idleri=()):
+def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yorum_idleri=(),
+                         yeni_degerlendirme=False):
     """
     Yol haritası sayfasını hazırlar. Hem öğrencinin kendi sayfası hem de
     öğretmenin salt okunur görünümü bu fonksiyonu kullanır (kod tekrarı olmasın diye).
@@ -862,6 +865,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
                            ogretmen_gorunumu=ogretmen_gorunumu,
                            bugun=bugun.isoformat(),
                            degerlendiren=veritabani.degerlendiren_adi(harita["degerlendiren_id"]),
+                           yeni_degerlendirme=yeni_degerlendirme,
                            commitler=commitler,
                            yeni_yorum_idleri=yeni_yorum_idleri)
 
@@ -1348,6 +1352,7 @@ def gecmis():
             "yorum_sayisi": satir["yorum_sayisi"],
             "yeni_yorum_sayisi": satir["yeni_yorum_sayisi"],
             "puan": satir["degerlendirme_puan"],             # Öğretmenin değerlendirmesi (1-5)
+            "yeni_puan": satir["degerlendirme_goruldu"] == 0,
         })
     return render_template("gecmis.html", haritalar=haritalar, ara=ara, durum=durum,
                            ozet=veritabani.istatistikler(aktif_id()),
@@ -1781,6 +1786,36 @@ def hedef_tarih_koy(ogrenci_id, adim_id):
 
 
 EN_UZUN_DEGERLENDIRME = 1000
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/toplu-hedef", methods=["POST"])
+@ogretmen_gerekli
+def toplu_hedef(sinif_id):
+    """
+    POST: Sınıf projesinde bütün öğrencilerin N. adımına aynı hedef tarihi koyar
+    (ör. "herkes 2. adımı Cuma'ya kadar bitirsin"). Tek tek her öğrenciye girmek gerekmez.
+    """
+    sinif = veritabani.sinif_getir(sinif_id, aktif_id())
+    if sinif is None:
+        abort(404)
+    geri = url_for("sinif_detay", sinif_id=sinif_id) + "#sinif-projesi"
+    if not sinif["proje"]:
+        flash("Toplu hedef için önce sınıfa bir proje ver.", "hata")
+        return redirect(geri)
+    sira = request.form.get("sira", type=int)
+    if not sira or not 1 <= sira <= 50:
+        flash("Adım numarası 1 ile 50 arasında olmalı.", "hata")
+        return redirect(geri)
+    tarih, hata = hedef_tarihi_oku(request.form.get("tarih", "").strip())
+    if hata:
+        flash(hata, "hata")
+        return redirect(geri)
+    sayi = veritabani.toplu_hedef_koy(sinif_id, sira, tarih.isoformat())
+    if sayi:
+        flash(f"{sayi} öğrencinin {sira}. adımına {tarih.strftime('%d.%m.%Y')} hedefi kondu.", "bilgi")
+    else:
+        flash(f"Sınıf projesinde {sira}. adımı olan öğrenci yok (henüz kimse başlamamış olabilir).", "hata")
+    return redirect(geri)
 
 
 @app.route("/ogretmen/ogrenci/<int:ogrenci_id>/yol-haritasi/<int:harita_id>/degerlendir", methods=["POST"])

@@ -24,7 +24,8 @@
       {% if harita.degerlendirme_puan %}
       <!-- Öğretmenin değerlendirmesi: 1-5 puan (yıldızla) ve kısa geri bildirim -->
       <section class="degerlendirme" id="degerlendirme">
-        <p class="ipucu-etiket">Öğretmen değerlendirmesi{% if degerlendiren %} · {{ degerlendiren }}{% endif %}</p>
+        <p class="ipucu-etiket">Öğretmen değerlendirmesi{% if degerlendiren %} · {{ degerlendiren }}{% endif %}
+          {% if yeni_degerlendirme %}<span class="yeni-etiketi">Yeni</span>{% endif %}</p>
         <p class="yildizlar" aria-label="5 üzerinden {{ harita.degerlendirme_puan }}">
           {%- for i in range(1, 6) %}<span class="{{ 'dolu' if i <= harita.degerlendirme_puan else 'bos' }}" aria-hidden="true">★</span>{% endfor -%}
           <span class="puan-yazi">{{ harita.degerlendirme_puan }} / 5</span>

@@ -487,6 +487,8 @@ def hazirla():
         sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_metin", "TEXT")
         sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_zamani", "TEXT")
         sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendiren_id", "INTEGER")
+        # Öğrenci değerlendirmeyi gördü mü? (1 = gördü ya da değerlendirme yok, 0 = yeni)
+        sutun_yoksa_ekle(baglanti, "yol_haritalari", "degerlendirme_goruldu", "INTEGER NOT NULL DEFAULT 1")
 
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
@@ -635,7 +637,7 @@ def tum_yol_haritalari(kullanici_id, ara="", durum="hepsi"):
     """
     # Sorguyu parça parça kuruyoruz; değerleri yine "?" ile güvenli şekilde veriyoruz.
     sorgu = """
-        SELECT y.id, y.proje, y.olusturma_zamani, y.degerlendirme_puan,
+        SELECT y.id, y.proje, y.olusturma_zamani, y.degerlendirme_puan, y.degerlendirme_goruldu,
                COUNT(a.id)                    AS toplam_adim,
                COALESCE(SUM(a.tamamlandi), 0) AS tamamlanan_adim,
                (SELECT COUNT(*) FROM ogretmen_yorumlari o
@@ -2149,9 +2151,10 @@ def yol_haritasi_degerlendir(harita_id, ogretmen_id, puan, metin):
         baglanti.execute("""
             UPDATE yol_haritalari
             SET degerlendirme_puan = ?, degerlendirme_metin = ?, degerlendirme_zamani = ?,
-                degerlendiren_id = ?
+                degerlendiren_id = ?, degerlendirme_goruldu = ?
             WHERE id = ?
-        """, (puan, metin if puan else None, zaman, ogretmen_id if puan else None, harita_id))
+        """, (puan, metin if puan else None, zaman, ogretmen_id if puan else None,
+              0 if puan else 1, harita_id))
         baglanti.commit()
     finally:
         baglanti.close()
@@ -2161,3 +2164,62 @@ def degerlendiren_adi(kullanici_id):
     """Değerlendirmeyi yapan öğretmenin adı (hesap silindiyse None)."""
     satir = kullanici_getir(kullanici_id) if kullanici_id else None
     return satir["kullanici_adi"] if satir else None
+
+
+# ---------------------------------------------------------------------------
+# 21) BİLDİRİMLER VE TOPLU HEDEF
+# ---------------------------------------------------------------------------
+
+def okunmamis_bildirim_sayisi(ogrenci_id):
+    """
+    Menüdeki "Geçmiş" rozeti: görülmemiş öğretmen yorumları + görülmemiş değerlendirmeler.
+    İki alt sorgunun sonucu toplanıyor.
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT (SELECT COUNT(*) FROM ogretmen_yorumlari o
+                      JOIN adimlar a ON a.id = o.adim_id
+                      JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+                     WHERE y.kullanici_id = :k AND o.okundu = 0)
+                 + (SELECT COUNT(*) FROM yol_haritalari
+                     WHERE kullanici_id = :k AND degerlendirme_goruldu = 0)
+        """, {"k": ogrenci_id}).fetchone()[0]
+    finally:
+        baglanti.close()
+
+
+def degerlendirmeyi_goruldu_yap(harita_id):
+    """
+    Öğrenci yol haritasını açınca değerlendirmeyi "görüldü" yapar.
+    Yeni miydi? (True/False) döndürür; sayfa bir kereliğine "Yeni" etiketi göstersin diye.
+    """
+    baglanti = baglan()
+    try:
+        imlec = baglanti.execute("""UPDATE yol_haritalari SET degerlendirme_goruldu = 1
+                                    WHERE id = ? AND degerlendirme_goruldu = 0""", (harita_id,))
+        baglanti.commit()
+        return imlec.rowcount > 0
+    finally:
+        baglanti.close()
+
+
+def toplu_hedef_koy(sinif_id, sira, tarih):
+    """
+    Sınıf projesinde, sınıftaki BÜTÜN öğrencilerin "sira" numaralı adımına aynı hedef tarihi koyar.
+    Sadece bu sınıfın projesi için çıkarılmış ve öğrencisi hâlâ sınıfta olan yol haritaları
+    (öğrencinin başka projelerine dokunulmaz). Kaç adıma tarih konduğunu döndürür.
+    """
+    baglanti = baglan()
+    try:
+        imlec = baglanti.execute("""
+            UPDATE adimlar SET hedef_tarih = ?, hedef_koyan = 'ogretmen'
+            WHERE sira = ? AND yol_haritasi_id IN (
+                SELECT y.id FROM yol_haritalari y
+                JOIN sinif_uyeleri u ON u.ogrenci_id = y.kullanici_id AND u.sinif_id = y.sinif_id
+                WHERE y.sinif_id = ?)
+        """, (tarih, sira, sinif_id))
+        baglanti.commit()
+        return imlec.rowcount
+    finally:
+        baglanti.close()

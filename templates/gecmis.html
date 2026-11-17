@@ -42,7 +42,7 @@
             <span class="ilerleme-dolu" style="width: {{ harita.yuzde }}%"></span>
           </span>
           <span class="gecmis-durum">{{ harita.tamamlanan }} / {{ harita.toplam }} adım · %{{ harita.yuzde }}</span>
-          {% if harita.puan %}<span class="puan-rozeti" title="Öğretmen değerlendirmesi">★ {{ harita.puan }}/5</span>{% endif %}
+          {% if harita.puan %}<span class="puan-rozeti" title="Öğretmen değerlendirmesi">★ {{ harita.puan }}/5{% if harita.yeni_puan %} · Yeni{% endif %}</span>{% endif %}
           {% endif %}
           {% if harita.yeni_yorum_sayisi %}
           <span class="yorum-rozeti yeni">{{ harita.yeni_yorum_sayisi }} yeni öğretmen yorumu</span>

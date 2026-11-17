@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti. 282 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef. 292 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -375,6 +375,8 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Öğretmen değerlendirmesi | `app.py` → `degerlendir()`; `veritabani.py` 20. bölüm |
 | Öğrencinin kendi hedefi | `app.py` → `kendi_hedefim()`, `hedef_tarihi_oku()` |
 | Öğretmen paneli özeti | `app.py` → `ogretmen_paneli()` |
+| Değerlendirme bildirimi | `veritabani.py` → `okunmamis_bildirim_sayisi()`, `degerlendirmeyi_goruldu_yap()` |
+| Toplu hedef | `app.py` → `toplu_hedef()`; `veritabani.py` → `toplu_hedef_koy()` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
 | Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py` |
 
@@ -443,6 +445,12 @@ Koyabiliyor; kendi planını yapması için. Ama her adımda tek bir hedef tarih
 
 **Öğretmen puanı nasıl saklanıyor? Puanı formdan nasıl kontrol ediyorsun?**
 `yol_haritalari` tablosunda dört sütun: puan, metin, zaman, değerlendiren öğretmen. Formdaki açılır kutu 1-5 gönderiyor ama formdan gelene güvenmiyorum: değer tam olarak `"1"`..`"5"` değilse (`"6"`, `"4.5"`, `"abc"`) kaydedilmiyor. Puan boş gönderilirse değerlendirme kaldırılıyor. Öğrenci yol haritasının en üstünde yıldızlarla görüyor; ekran okuyucular için `aria-label="5 üzerinden 4"` var, yıldızlar `aria-hidden`.
+
+**Öğrenci değerlendirme geldiğini nasıl anlıyor?**
+Yol haritasında `degerlendirme_goruldu` sütunu var: öğretmen puan verince (ya da değiştirince) 0 oluyor, öğrenci yol haritasını açınca 1. Menüdeki "Geçmiş" rozeti görülmemiş yorumlarla görülmemiş değerlendirmeleri **tek sorguda iki alt sorgunun toplamı** olarak sayıyor. "Görüldü" yapan `UPDATE ... WHERE degerlendirme_goruldu = 0` sorgusunun `rowcount`'u bana "az önce yeni miydi?" sorusunun cevabını veriyor; sayfa buna göre bir kereliğine "Yeni" yazıyor. Öğretmen öğrencinin sayfasına bakınca görüldü sayılmıyor (testi var).
+
+**Toplu hedef bütün öğrencilerin bütün yol haritalarını mı değiştiriyor?**
+Hayır. Tek bir `UPDATE` var ama `WHERE` koşulu sadece **bu sınıfın projesi için çıkarılmış** (`y.sinif_id = ?`) ve öğrencisi **hâlâ sınıfta olan** (`JOIN sinif_uyeleri`) yol haritalarının o numaralı adımını seçiyor. Öğrencinin başka projesine ya da sınıftan ayrılmış öğrenciye dokunmuyor; ikisinin de testi var. Kaç adıma tarih konduğunu `rowcount` söylüyor, öğretmene "2 öğrencinin 2. adımına..." diye gösteriyorum.
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

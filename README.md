@@ -178,3 +178,4 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Adımlara hedef tarih, öğrenciyi sınıftan çıkarma, haftalık özet
 - [x] 9. hafta: Sınıf projesi, sınıfın son etkinlikler akışı
 - [x] 9. hafta: Öğretmen değerlendirmesi (1-5 puan), öğrencinin kendi hedefleri, öğretmen paneli özeti
+- [x] 9. hafta: Değerlendirme bildirimi, sınıf projesinde toplu hedef
