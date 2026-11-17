@@ -181,3 +181,4 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Değerlendirme bildirimi, sınıf projesinde toplu hedef
 - [x] 9. hafta: Öğretmenime sor, sınıf projesinin adım adım dağılımı
 - [x] 9. hafta: Öğrencinin bildiklerine göre koç, sınıfla paylaşılan sorular
+- [x] 9. hafta: "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu

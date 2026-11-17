@@ -1,0 +1,120 @@
+{% extends "taban.html" %}
+{# Öğretmen: sınıfın tek sayfalık, yazdırılabilir raporu (9. hafta).
+   Sınıf sayfasıyla aynı verileri kullanır; formlar ve düğmeler yok.
+   Kâğıtta menü ve düğmeler style.css'teki @media print kurallarıyla gizlenir. #}
+
+{% block baslik %}{{ sinif.ad }} raporu · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket rapor-gizle"><a href="{{ url_for('sinif_detay', sinif_id=sinif.id) }}" class="geri-baglanti">← Sınıfa dön</a></p>
+    <div class="rapor-ust">
+      <h1>{{ sinif.ad }} · Sınıf raporu</h1>
+      <span class="gecmis-durum">{{ tarih }} · Öğretmen: {{ g.kullanici.kullanici_adi }}</span>
+    </div>
+    <!-- JavaScript yoksa yazdırma düğmesi işe yaramaz; o yüzden gizli başlar, betik görünür yapar -->
+    <button type="button" id="rapor-yazdir" class="isaret rapor-gizle" hidden>Yazdır / PDF</button>
+
+    {% if sinif.proje %}
+    <p class="aciklama"><strong>Sınıf projesi:</strong> {{ sinif.proje }}</p>
+    {% endif %}
+
+    {% if ogrenciler %}
+    <section class="rapor-bolumu">
+      <h2>Genel durum</h2>
+      <div class="ozet">
+        <div><strong>{{ ogrenciler | length }}</strong><span>öğrenci</span></div>
+        <div><strong>%{{ istatistik.ortalama }}</strong><span>ortalama ilerleme</span></div>
+        <div><strong>{{ istatistik.aktif_hafta }}</strong><span>son 7 günde çalışan</span></div>
+        <div><strong>{{ istatistik.baslamayan }}</strong><span>henüz başlamayan</span></div>
+      </div>
+    </section>
+
+    <section class="rapor-bolumu">
+      <h2>Öğrenciler</h2>
+      <div class="tablo-kutusu">
+        <table class="tablo">
+          <thead>
+            <tr>
+              <th>Öğrenci</th>
+              <th>İlerleme</th>
+              {% if sinif.proje %}<th>Sınıf projesi</th>{% endif %}
+              <th>İpucu</th>
+              <th>Commit</th>
+              <th>Yapay zekâ (7 gün)</th>
+              <th>Geciken</th>
+              <th>Son etkinlik</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in ogrenciler %}
+            <tr>
+              <td>{{ o.kullanici_adi }}</td>
+              <td>{% if o.toplam > 0 %}{{ o.biten }} / {{ o.toplam }} · %{{ o.yuzde }}{% else %}Başlamadı{% endif %}</td>
+              {% if sinif.proje %}
+              <td>{% if o.proje_harita_id %}%{{ o.proje_yuzde }}{% if o.proje_puan %} · ★ {{ o.proje_puan }}{% endif %}{% else %}Başlamadı{% endif %}</td>
+              {% endif %}
+              <td>{{ o.ipucu_sayisi }}</td>
+              <td>{{ o.commit_sayisi }}</td>
+              <td>{{ o.yz_hafta }}</td>
+              <td>{{ o.geciken }}</td>
+              <td>{{ o.son_etkinlik | tarih if o.son_etkinlik else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    {% if proje_adimlari %}
+    <section class="rapor-bolumu">
+      <h2>Sınıf projesi: adım adım</h2>
+      <div class="tablo-kutusu">
+        <table class="tablo">
+          <thead><tr><th>Adım</th><th>Bitiren</th><th>Şu an burada</th><th>Takılan</th></tr></thead>
+          <tbody>
+            {% for a in proje_adimlari %}
+            <tr><td>{{ a.sira }}. adım</td><td>{{ a.biten }} (%{{ a.oran }})</td><td>{{ a.burada }}</td><td>{{ a.takilan }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if takilanlar %}
+    <section class="rapor-bolumu">
+      <h2>Yardıma ihtiyacı olabilir</h2>
+      <p class="ipucu-yazi">Henüz bitmemiş ve en az 2 ipucu alınmış adımlar.</p>
+      <ul class="rapor-listesi">
+        {% for t in takilanlar %}
+        <li><strong>{{ t.kullanici_adi }}</strong> · {{ t.baslik | adim_basligi(t.sira) }} ({{ t.ipucu_sayisi }} ipucu)</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if gecikenler %}
+    <section class="rapor-bolumu">
+      <h2>Hedefi geçen adımı olanlar</h2>
+      <ul class="rapor-listesi">
+        {% for o in gecikenler %}
+        <li><strong>{{ o.kullanici_adi }}</strong> · {{ o.geciken }} adım</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+    {% else %}
+    <section class="kart">
+      <p class="aciklama">Bu sınıfa henüz kimse katılmadı; raporda gösterilecek bir şey yok.</p>
+    </section>
+    {% endif %}
+{% endblock %}
+
+{% block betik %}
+  <script>
+    // Yazdır düğmesi: tarayıcının yazdırma penceresini açar ("PDF olarak kaydet" de orada)
+    const yazdir = document.getElementById("rapor-yazdir");
+    yazdir.hidden = false;
+    yazdir.addEventListener("click", function () { window.print(); });
+  </script>
+{% endblock %}

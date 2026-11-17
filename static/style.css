@@ -1241,3 +1241,29 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 /* --- Onay kutusu satırı (ör. "sınıfla paylaş") --- */
 .onay-kutusu { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 8px 0; }
 .onay-kutusu input { width: auto; margin: 0; }
+
+/* --- "Bugün ne yapayım?" kartı (ana sayfa) --- */
+.oneri-karti {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--vurgu-acik);
+  color: var(--koyu);
+  border: 1px solid var(--vurgu);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  text-decoration: none;
+}
+.oneri-karti:hover { border-color: var(--vurgu-koyu); }
+.oneri-karti .etiket { color: var(--vurgu-koyu); }
+
+/* --- Sınıf raporu: ekranda kart gibi, kâğıtta sade --- */
+.rapor-ust { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.rapor-bolumu { margin: 18px 0; }
+.rapor-bolumu h2 { font-size: 18px; margin-bottom: 8px; }
+.rapor-listesi { margin: 0; padding-left: 20px; }
+@media print {
+  .rapor-gizle { display: none !important; }
+  .rapor-bolumu { break-inside: avoid; }
+}

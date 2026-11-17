@@ -616,6 +616,47 @@ def cikis():
 # Sayfalar (route'lar): Hangi adreste ne olacağını belirler
 # ---------------------------------------------------------------------------
 
+def bugun_onerisi(hedefler, devam, devam_ipucu, sinifta, seri, bugun_calisti):
+    """
+    Ana sayfadaki "Bugün ne yapayım?" kartı için TEK bir öneri seçer.
+    Kurallar öncelik sırasıyla denenir; ilk uyan kazanır:
+      1) Hedefi geçmiş adım        2) Hedefi bugün/yarın olan adım
+      3) Takıldığı adım (2+ ipucu)  4) Seri bozulmasın (dün çalıştı, bugün henüz değil)
+      5) Sıradaki adım              6) Hiç devam eden yol haritası yok
+    Veritabanına dokunmaz; bütün bilgiyi parametre olarak alır (kolay test edilsin diye).
+    Dönüş: {"metin": ..., "adres": ...}
+    """
+    def adim_adresi_(h):
+        return url_for("yol_haritasi_goster", harita_id=h["harita_id"]) + f"#adim-{h['adim_id']}"
+
+    for h in hedefler:
+        if h["kalan"] < 0:
+            return {"metin": f"“{adim_basligi(h['baslik'], h['sira'])}” adımının hedefi {-h['kalan']} gün önce geçti. "
+                             "Bugün ona odaklan; takıldıysan ipucu iste.",
+                    "adres": adim_adresi_(h)}
+    for h in hedefler:
+        if h["kalan"] <= 1:
+            ne_zaman = "bugün" if h["kalan"] == 0 else "yarın"
+            return {"metin": f"“{adim_basligi(h['baslik'], h['sira'])}” adımının hedefi {ne_zaman}. "
+                             "Bitirmeye çok yakınsın!",
+                    "adres": adim_adresi_(h)}
+    if devam and devam_ipucu >= 2:
+        kime = "öğretmenine sor" if sinifta else "koça bir soru sor"
+        return {"metin": f"“{adim_basligi(devam['baslik'], devam['sira'])}” adımında {devam_ipucu} ipucu aldın. "
+                         f"Hâlâ takıldıysan {kime}; bazen bir cümlelik açıklama yeter.",
+                "adres": adim_adresi_(devam)}
+    if devam and seri > 0 and not bugun_calisti:
+        return {"metin": f"Serin {seri} gün. Bugün küçük bir adım atarsan seri devam eder: "
+                         f"“{adim_basligi(devam['baslik'], devam['sira'])}”.",
+                "adres": adim_adresi_(devam)}
+    if devam:
+        return {"metin": f"Sıradaki adımın: “{adim_basligi(devam['baslik'], devam['sira'])}”. "
+                         "İlk küçük parçasıyla başla.",
+                "adres": adim_adresi_(devam)}
+    return {"metin": "Devam eden bir yol haritan yok. Aşağıya yeni bir proje anlat ya da fikir al.",
+            "adres": "#form"}
+
+
 def sinif_projesi_bul(sinif_id):
     """
     Giriş yapmış öğrencinin ÜYE OLDUĞU ve projesi olan bir sınıfı döndürür, yoksa None.
@@ -655,7 +696,14 @@ def ana_sayfa():
                                      (pazartesi - timedelta(days=7)).isoformat())
 
     # Öğretmenlerin verdiği sınıf projeleri (öğrencinin üye olduğu, projesi olan sınıflar)
-    sinif_projeleri = [s for s in veritabani.ogrencinin_siniflari(aktif_id()) if s["proje"]]
+    siniflari = veritabani.ogrencinin_siniflari(aktif_id())
+    sinif_projeleri = [s for s in siniflari if s["proje"]]
+
+    # "Bugün ne yapayım?": hedefler, sıradaki adım, ipucu sayısı ve seriye bakarak tek öneri
+    gunler = {date.fromisoformat(gun) for gun in veritabani.calisma_gunleri(aktif_id())}
+    seri, _ = seri_hesapla(gunler, bugun)
+    devam_ipucu = len(veritabani.ipuclarini_getir(devam["adim_id"])) if devam else 0
+    oneri = bugun_onerisi(hedefler, devam, devam_ipucu, bool(siniflari), seri, bugun in gunler)
     # "Bu projeyle başla"ya basıldıysa (/?sinif_proje=3) formu sınıf projesiyle doldur
     secilen = sinif_projesi_bul(request.args.get("sinif_proje", type=int))
     proje = secilen["proje"] if secilen else request.args.get("proje", "")[:1000]
@@ -663,7 +711,7 @@ def ana_sayfa():
     return render_template("index.html", anahtar_var=bool(api_anahtari()), canli=CANLI,
                            yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI,
                            hedefler=hedefler, hafta=hafta,
-                           sinif_projeleri=sinif_projeleri, sinif_proje=secilen,
+                           sinif_projeleri=sinif_projeleri, sinif_proje=secilen, oneri=oneri,
                            devam=devam, yeni_duyurular=yeni_duyurular,
                            devam_yuzde=ilerleme_hesapla(devam["biten"], devam["toplam"]) if devam else 0,
                            proje=proje,
@@ -1537,7 +1585,47 @@ def sinif_detay(sinif_id):
     sinif = veritabani.sinif_getir(sinif_id, aktif_id())
     if sinif is None:
         abort(404)                         # Yoksa ya da başka öğretmenin sınıfıysa
+    ogrenciler = sinif_ogrencileri(sinif_id)
 
+    # Sınıf istatistikleri: son 14 günün etkinliği veritabanından, gerisi Python'da hesaplanır
+    bugun = date.today()
+    baslangic = bugun - timedelta(days=ISTATISTIK_GUN - 1)
+    etkinlikler = veritabani.sinif_etkinlikleri(sinif_id, baslangic.isoformat())
+
+    return render_template("sinif_detay.html", sinif=sinif, ogrenciler=ogrenciler,
+                           istatistik=sinif_istatistigi(ogrenciler, etkinlikler, bugun),
+                           takilanlar=veritabani.takilan_adimlar(sinif_id),
+                           duyurular=veritabani.sinifin_duyurulari(sinif_id),
+                           akis=veritabani.sinif_etkinlik_akisi(sinif_id),
+                           proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
+                           en_uzun_duyuru=EN_UZUN_DUYURU, en_uzun_proje=EN_UZUN_SINIF_PROJESI)
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/rapor", methods=["GET"])
+@ogretmen_gerekli
+def sinif_raporu(sinif_id):
+    """
+    GET: Sınıfın tek sayfalık, yazdırılabilir özeti (veli toplantısı, not verme için).
+    Sınıf sayfasıyla AYNI verileri kullanır (sinif_ogrencileri, sinif_istatistigi...);
+    sadece düğmeler ve formlar yok, yazdırmaya uygun bir düzen var.
+    """
+    sinif = veritabani.sinif_getir(sinif_id, aktif_id())
+    if sinif is None:
+        abort(404)
+    ogrenciler = sinif_ogrencileri(sinif_id)
+    bugun = date.today()
+    etkinlikler = veritabani.sinif_etkinlikleri(
+        sinif_id, (bugun - timedelta(days=ISTATISTIK_GUN - 1)).isoformat())
+    return render_template("sinif_raporu.html", sinif=sinif, ogrenciler=ogrenciler,
+                           istatistik=sinif_istatistigi(ogrenciler, etkinlikler, bugun),
+                           takilanlar=veritabani.takilan_adimlar(sinif_id),
+                           proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
+                           gecikenler=[o for o in ogrenciler if o["geciken"]],
+                           tarih=datetime.now().strftime("%d.%m.%Y %H:%M"))
+
+
+def sinif_ogrencileri(sinif_id):
+    """Sınıf sayfası ve sınıf raporu için öğrenci listesi (veritabanı satırları -> sözlükler)."""
     ogrenciler = []
     for satir in veritabani.sinif_ozeti(sinif_id):
         ogrenciler.append({
@@ -1557,19 +1645,7 @@ def sinif_detay(sinif_id):
             "proje_puan": satir["proje_puan"],
             "son_etkinlik": satir["son_etkinlik"] or None,   # '' ise "henüz yok"
         })
-
-    # Sınıf istatistikleri: son 14 günün etkinliği veritabanından, gerisi Python'da hesaplanır
-    bugun = date.today()
-    baslangic = bugun - timedelta(days=ISTATISTIK_GUN - 1)
-    etkinlikler = veritabani.sinif_etkinlikleri(sinif_id, baslangic.isoformat())
-
-    return render_template("sinif_detay.html", sinif=sinif, ogrenciler=ogrenciler,
-                           istatistik=sinif_istatistigi(ogrenciler, etkinlikler, bugun),
-                           takilanlar=veritabani.takilan_adimlar(sinif_id),
-                           duyurular=veritabani.sinifin_duyurulari(sinif_id),
-                           akis=veritabani.sinif_etkinlik_akisi(sinif_id),
-                           proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
-                           en_uzun_duyuru=EN_UZUN_DUYURU, en_uzun_proje=EN_UZUN_SINIF_PROJESI)
+    return ogrenciler
 
 
 EN_UZUN_DUYURU = 1000

@@ -120,6 +120,7 @@
       {% if ogrenciler %}
       <!-- CSV indirme: normal bir bağlantı (GET), çünkü hiçbir şeyi değiştirmiyor -->
       <a class="indir-baglantisi" href="{{ url_for('sinif_indir', sinif_id=sinif.id) }}">Excel'e aktar (CSV)</a>
+      <a class="indir-baglantisi" href="{{ url_for('sinif_raporu', sinif_id=sinif.id) }}">Sınıf raporu (yazdır / PDF)</a>
       {% endif %}
     </div>
     {% if ogrenciler %}

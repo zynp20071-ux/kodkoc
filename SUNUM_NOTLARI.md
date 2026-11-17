@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular. 315 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu. 326 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -381,8 +381,10 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Sınıf projesi adım dağılımı | `app.py` → `proje_adim_dagilimi()`; `veritabani.py` → `sinif_projesi_adimlari()` |
 | Öğrenciye özel koç | `kodkoc.py` → `bildikleri_satiri()`; `app.py` → `ipucu()`, `kod_incele()`, `koca_soru_sor()` |
 | Sınıfla paylaşılan sorular | `veritabani.py` → `paylasilan_sorular()`; `templates/sinifim.html` |
+| "Bugün ne yapayım?" | `app.py` → `bugun_onerisi()`, `ana_sayfa()` |
+| Sınıf raporu | `app.py` → `sinif_raporu()`, `sinif_ogrencileri()`; `templates/sinif_raporu.html` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -470,6 +472,12 @@ Veritabanından her öğrencinin sınıf projesi için çıkardığı **en son**
 
 **Paylaşılan sorularda gizliliği nasıl sağladın?**
 Öğretmen cevap verirken "sınıfla paylaş" kutusunu işaretlerse soru-cevap, o öğretmenin sınıflarındaki öğrencilerin "Sınıfım" sayfasında görünüyor. Sorgu soranın adını **hiç getirmiyor**: sadece soru, cevap, adım başlığı ve öğretmenin adı. Başka öğretmenin sınıfındaki ya da hiç sınıfı olmayan öğrenci görmüyor (`EXISTS` ile cevaplayan öğretmenin sınıflarından birinde mi diye bakılıyor). Öğretmen kutunun işaretini kaldırıp tekrar gönderirse paylaşım geri alınıyor. Soran öğrenci, sorusunun paylaşıldığını kendi sayfasında görüyor.
+
+**"Bugün ne yapayım?" önerisi nasıl seçiliyor? Yapay zekâ mı?**
+Hayır, yapay zekâ değil; basit **kurallar**, öncelik sırasıyla: (1) hedefi geçmiş adım, (2) hedefi bugün/yarın olan adım, (3) 2+ ipucu alınan adım (sınıftaysa "öğretmenine sor", değilse "koça sor"), (4) seri bozulmasın (dün çalıştı, bugün henüz değil), (5) sıradaki adım, (6) hiç yol haritası yoksa "proje seç". İlk uyan kural kazanıyor. `bugun_onerisi()` veritabanına dokunmuyor, bütün bilgiyi parametre olarak alıyor; böylece her kuralı veritabanı olmadan tek tek test edebildim. Kural tabanlı olması ücretsiz, hızlı ve her seferinde aynı sonucu veriyor; yapay zekâ kotası da harcanmıyor.
+
+**Sınıf raporunu nasıl yaptın? Kodu tekrar mı yazdın?**
+Hayır. Sınıf sayfasındaki öğrenci listesini oluşturan döngüyü `sinif_ogrencileri()` fonksiyonuna taşıdım; hem sınıf sayfası hem rapor onu kullanıyor (istatistik, takılanlar, adım dağılımı da aynı fonksiyonlar). Rapor sadece farklı bir şablon: form ve düğme yok, "Yazdır / PDF" tarayıcının yazdırma penceresini açıyor, `@media print` kuralları menüyü ve düğmeyi kâğıtta gizliyor, bölümler sayfa arasında bölünmüyor (`break-inside: avoid`).
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

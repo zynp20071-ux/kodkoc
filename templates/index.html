@@ -38,6 +38,14 @@
     </section>
     {% endif %}
 
+    {% if oneri %}
+    <!-- "Bugün ne yapayım?": hedeflere, takılınan adıma ve seriye göre tek bir öneri -->
+    <a class="oneri-karti" href="{{ oneri.adres }}">
+      <span class="etiket">Bugün ne yapayım?</span>
+      <span>{{ oneri.metin }}</span>
+    </a>
+    {% endif %}
+
     {% if sinif_projeleri and not sinif_proje %}
     <!-- Öğretmenlerin sınıfa verdiği ortak projeler -->
     <section class="kart sinif-projesi-karti">
