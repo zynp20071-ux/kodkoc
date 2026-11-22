@@ -8,10 +8,10 @@
     <p class="etiket"><a href="{{ url_for('mesajlar') }}" class="geri-baglanti">← Mesajlar</a></p>
     <div class="sohbet-ust">
       <h1>{% if kisi %}<a href="{{ url_for('profil_goster', kullanici_id=kisi.id) }}">{{ baslik }}</a>{% else %}{{ baslik }}{% endif %}</h1>
-      <span class="gecmis-durum">{% if sinif %}Sınıf sohbeti · {{ uyeler | length }} kişi{% else %}Özel sohbet{% endif %}</span>
+      <span class="gecmis-durum">{% if sinif %}Sınıf sohbeti · {{ uyeler | length }} kişi{% elif grup %}Grup sohbeti · {{ grup.sinif_adi }} · <a href="{{ url_for('grup_sayfasi', grup_id=grup.id) }}">Görev panosu</a>{% else %}Özel sohbet{% endif %}</span>
     </div>
 
-    {% if sinif %}
+    {% if sinif or grup %}
     <details class="uye-listesi">
       <summary>Üyeler</summary>
       <ul class="kisi-listesi">
@@ -21,7 +21,7 @@
         {% endfor %}
       </ul>
     </details>
-    {% if ogretmen_mi %}
+    {% if sinif and ogretmen_mi %}
     <!-- Öğretmenin sohbet ayarları -->
     <details class="uye-listesi">
       <summary>Sohbet ayarları</summary>

@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi, kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma, mesaj bildirme ve engelleme, kötü kelime süzgeci, gizlilik sayfası, tarayıcıda Python çalıştırma. 379 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi, kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma, mesaj bildirme ve engelleme, kötü kelime süzgeci, gizlilik sayfası, tarayıcıda Python çalıştırma, mini quiz, ödev teslimi ve puanlama, grup projeleri (görev panosu + grup sohbeti). 408 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -391,9 +391,12 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Kötü kelime süzgeci | `app.py` → `kufur_suz()`, `KOTU_KELIMELER` |
 | Gizlilik sayfası | `templates/gizlilik.html` |
 | Tarayıcıda Python | `static/python_isci.js` (Web Worker + Pyodide), `templates/kod_dene.html`, `app.py` → `kod_dene()`, `ISCI_CSP` |
+| Mini quiz | `kodkoc.py` → `QUIZ_TALIMATI`, `quiz_iste()`, `quiz_kontrol()`; `app.py` → `quiz_olustur()`, `quiz_cevapla()`, `quiz_hazirla()` |
+| Ödevler | `app.py` → `odev_ver()`, `odev()`, `odevler()`, `odev_teslimleri()`, `teslim_puanla()`; `veritabani.py` 28. bölüm; `templates/odev*.html` |
+| Grup projeleri | `app.py` → `grup_kur()`, `grup_sayfasi()`, `gorev_ekle()`, `gorev_guncelle()`, `grup_sohbeti()`; `veritabani.py` 29. bölüm; `templates/grup.html` |
 | Sınıf sohbeti ve özel mesaj | `app.py` → `mesajlar()`, `sinif_sohbeti()`, `ozel_sohbet()`, `sohbet_yeni()`, `mesaj_sil()`, `sohbet_ayari()`; `veritabani.py` 25. bölüm; `templates/mesajlar.html`, `templates/sohbet.html` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py`, `tests/test_mesajlasma.py`, `tests/test_bildir_engelle.py`, `tests/test_kod_dene.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py`, `tests/test_mesajlasma.py`, `tests/test_bildir_engelle.py`, `tests/test_kod_dene.py`, `tests/test_quiz.py`, `tests/test_odevler.py`, `tests/test_gruplar.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -508,6 +511,15 @@ Hayır. Her şey **sınıf** üzerinden: aynı sınıftakiler birbirinin profili
 
 **Tarayıcıda Python nasıl çalışıyor? Sunucuda kod çalıştırmak tehlikeli değil mi?**
 Tehlikeli olurdu, o yüzden sunucuda çalışmıyor. **Pyodide**, Python'un WebAssembly'ye derlenmiş hali; öğrencinin tarayıcısında çalışıyor. Kod bir **Web Worker**'da (ayrı iş parçacığı) çalışıyor; `while True:` yazılırsa sayfa donmuyor, 10 saniye sonra işçi kapatılıp yenisi açılıyor. `input()` için girdiler önceden bir kutuya satır satır yazılıyor. Her çalıştırma boş bir değişken alanıyla başlıyor. Pyodide dışarıdan (jsdelivr) indirildiği ve WebAssembly derlediği için daha geniş bir CSP iznine ihtiyaç var; bu izni **sadece işçi dosyasına** verdim, sayfaların CSP'si değişmedi (testi var). Kod sayfadan tek tıkla "Kodumu incelet"e de gönderilebiliyor.
+
+**Mini quizde öğrenci sayfanın kaynağına bakıp doğru cevabı görebilir mi?**
+Hayır. Sorular veritabanında JSON olarak duruyor (`json.dumps` / `json.loads`). Quiz cevaplanmadan şablona sadece soru ve seçenekler gidiyor; doğru cevap ve açıklama sayfaya **hiç konmuyor**. Cevaplar formla sunucuya geliyor, sunucu kontrol ediyor. Aynı soruları ikinci kez cevaplayıp puanı düzeltmek de olmuyor (`UPDATE ... WHERE cevaplar IS NULL`). Yapay zekâdan gelen veriye de körü körüne güvenmiyorum: `quiz_kontrol()` her sorunun 4 seçeneği ve 0-3 arası geçerli bir doğru cevabı olduğunu kontrol ediyor (bozuk örneklerle testi var).
+
+**Ödev teslimi nasıl çalışıyor?**
+Öğretmen sınıfa son tarihli ödev veriyor. Öğrenci bir açıklama/kod ve isteğe bağlı bir bağlantı (ör. GitHub) teslim ediyor; puan verilene kadar güncelleyebiliyor (UPSERT). Son tarih geçince de teslim edebiliyor ama "geç teslim" yazıyor. Öğretmenin listesinde teslim etmeyenler de görünüyor: bunun için `LEFT JOIN` kullandım (sınıftaki her öğrenci + varsa teslimi). Bağlantı sadece `http(s)://` olabilir; `javascript:` gibi tehlikeli adresler reddediliyor. Menüdeki "Ödevler" sayısı: süresi geçmemiş, teslim edilmemiş ödevler + görülmemiş puanlar.
+
+**Grup projeleri nasıl?**
+Öğretmen sınıfta grup kuruyor ve öğrencileri seçiyor; sınıfta olmayan biri gruba eklenemiyor (`INSERT ... SELECT ... WHERE EXISTS`). Her grubun bir görev panosu (Yapılacak / Yapılıyor / Bitti, kime atandığıyla) ve kendi sohbeti var. Grup sohbeti, sınıf sohbetinin altyapısını kullanıyor: mesajlar tablosuna `grup_id` sütunu ekledim; bildirme, engelleme, silme aynen çalışıyor. Öğrenci sınıftan ayrılınca o sınıfın gruplarından da çıkıyor.
 
 **Mesajda biri `<script>` yazarsa ne olur?**
 Hiçbir şey; düz yazı olarak görünür. Sayfada Jinja2 her şeyi otomatik kaçışlıyor (`&lt;script&gt;`). Yoklamayla gelen mesajları betik `innerHTML` ile değil `textContent` ile ekliyor; böylece metin asla kod olarak çalışmıyor (XSS koruması). Testi var.

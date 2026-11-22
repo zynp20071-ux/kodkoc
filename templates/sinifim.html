@@ -50,6 +50,17 @@
     {% endfor %}
     {% endif %}
 
+    {% if gruplar %}
+    <h2 class="ara-baslik">Grupların</h2>
+    <ul class="kisi-listesi">
+      {% for gr in gruplar %}
+      <li><a href="{{ url_for('grup_sayfasi', grup_id=gr.id) }}"><strong>{{ gr.ad }}</strong></a>
+        <span class="gecmis-durum">· {{ gr.sinif_adi }}</span>
+        <a class="dugme-link kucuk" href="{{ url_for('grup_sohbeti', grup_id=gr.id) }}">Grup sohbeti</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
     {% if siniflar %}
     <h2 class="ara-baslik">Katıldığın sınıflar</h2>
     <ul class="gecmis-listesi">

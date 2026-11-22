@@ -1,0 +1,33 @@
+{% extends "taban.html" %}
+{# Öğrenci: bütün sınıflarındaki ödevler (9. hafta) #}
+
+{% block baslik %}Ödevler · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Ödevler</h1>
+    <p class="aciklama">Öğretmenlerinin verdiği ödevler. Birine tıklayıp teslim edebilirsin.</p>
+
+    {% if odevler %}
+    <ul class="sohbet-listesi">
+      {% for o in odevler %}
+      <li>
+        <a class="sohbet-ogesi" href="{{ url_for('odev', odev_id=o.id) }}">
+          <span class="sohbet-adi">{{ o.baslik }}</span>
+          <span class="odev-durumu {{ o.durum }}">
+            {% if o.durum == 'puanlandi' %}Puan: {{ o.puan }}{% if not o.goruldu %} · Yeni{% endif %}
+            {% elif o.durum == 'teslim' %}Teslim edildi
+            {% elif o.durum == 'gecti' %}Süre geçti
+            {% elif o.kalan == 0 %}Son gün bugün!
+            {% else %}{{ o.kalan }} gün kaldı{% endif %}
+          </span>
+          <span class="sohbet-son">{{ o.sinif_adi }} · Son tarih: {{ o.son_tarih | gun }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <section class="kart">
+      <p class="aciklama">Henüz ödevin yok. Öğretmenin bir ödev verince burada göreceksin.</p>
+    </section>
+    {% endif %}
+{% endblock %}

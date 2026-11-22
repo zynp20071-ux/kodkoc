@@ -1,0 +1,44 @@
+{% extends "taban.html" %}
+{# Öğretmen: bir ödevin teslimleri ve puanlama (9. hafta) #}
+
+{% block baslik %}{{ odev.baslik }} · Teslimler · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('sinif_detay', sinif_id=odev.sinif_id) }}#odevler" class="geri-baglanti">← {{ odev.sinif_adi }}</a></p>
+    <h1>{{ odev.baslik }}</h1>
+    <p class="gecmis-durum">Son tarih: {{ odev.son_tarih | gun }} · {{ teslim_eden }} / {{ teslimler | length }} öğrenci teslim etti</p>
+    {% if odev.aciklama %}<section class="kart"><p class="hakkimda-metni">{{ odev.aciklama }}</p></section>{% endif %}
+
+    <section class="kart">
+      {% for t in teslimler %}
+      <div class="teslim-ogesi" id="teslim-{{ t.teslim_id or 'yok-' ~ t.ogrenci_id }}">
+        <p><a href="{{ url_for('profil_goster', kullanici_id=t.ogrenci_id) }}"><strong>{{ t.kullanici_adi }}</strong></a>
+          {% if t.teslim_id %}
+          <span class="gecmis-durum">· {{ t.zaman | tarih }}{% if t.zaman[:10] > odev.son_tarih %} · <strong>geç teslim</strong>{% endif %}</span>
+          {% else %}
+          <span class="odev-durumu gecti">Teslim etmedi</span>
+          {% endif %}
+        </p>
+        {% if t.teslim_id %}
+        {% if t.baglanti %}<p><a href="{{ t.baglanti }}" rel="noopener noreferrer nofollow" target="_blank">{{ t.baglanti }}</a></p>{% endif %}
+        {% if t.metin %}<pre class="teslim-metni">{{ t.metin }}</pre>{% endif %}
+        <form method="post" action="{{ url_for('teslim_puanla', teslim_id=t.teslim_id) }}" class="puan-formu">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label>Puan <input type="number" name="puan" min="0" max="100" required value="{{ t.puan if t.puan is not none else '' }}"></label>
+          <label class="gizli" for="yorum-{{ t.teslim_id }}">Yorum</label>
+          <input type="text" id="yorum-{{ t.teslim_id }}" name="yorum" maxlength="500" placeholder="Kısa yorum (isteğe bağlı)" value="{{ t.yorum or '' }}">
+          <button type="submit" class="ikincil">{{ 'Güncelle' if t.puan is not none else 'Puanla' }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="aciklama">Sınıfta henüz öğrenci yok.</p>
+      {% endfor %}
+    </section>
+
+    <form method="post" action="{{ url_for('odev_sil', odev_id=odev.id) }}"
+          onsubmit="return confirm('Ödev ve bütün teslimleri silinsin mi?');">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <button type="submit" class="sil">Ödevi sil</button>
+    </form>
+{% endblock %}

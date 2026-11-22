@@ -241,6 +241,72 @@
     </section>
     {% endif %}
 
+    <!-- Grup projeleri: öğrencileri gruplara ayır; her grubun görev panosu ve sohbeti var -->
+    <h2 class="ara-baslik" id="gruplar">Gruplar</h2>
+    <section class="kart">
+      {% if ogrenciler %}
+      <details {% if not gruplar %}open{% endif %}>
+        <summary>Yeni grup kur</summary>
+        <form method="post" action="{{ url_for('grup_kur', sinif_id=sinif.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label for="grup-ad">Grup adı</label>
+          <input type="text" id="grup-ad" name="ad" maxlength="60" required placeholder="Örnek: Kırmızı takım">
+          <label for="grup-proje">Grubun projesi <span class="istege-bagli">(isteğe bağlı)</span></label>
+          <textarea id="grup-proje" name="proje" rows="2" maxlength="{{ en_uzun_proje }}" placeholder="Örnek: Okul kantini için sipariş programı"></textarea>
+          <fieldset class="uye-secimi">
+            <legend>Öğrenciler</legend>
+            {% for o in ogrenciler %}
+            <label class="onay-kutusu"><input type="checkbox" name="uye" value="{{ o.id }}"> {{ o.kullanici_adi }}</label>
+            {% endfor %}
+          </fieldset>
+          <button type="submit" class="ikincil">Grubu kur</button>
+        </form>
+      </details>
+      {% else %}
+      <p class="ipucu-yazi">Grup kurmak için önce öğrencilerin sınıfa katılması gerekiyor.</p>
+      {% endif %}
+      {% if gruplar %}
+      <ul class="odev-listesi">
+        {% for gr in gruplar %}
+        <li>
+          <a href="{{ url_for('grup_sayfasi', grup_id=gr.id) }}"><strong>{{ gr.ad }}</strong></a>
+          <span class="gecmis-durum">{{ gr.uyeler | join(', ') or 'Üye yok' }} · {{ gr.biten_gorev }} / {{ gr.gorev_sayisi }} görev bitti</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+
+    <!-- Ödevler: son tarihli ödev ver, teslimleri gör ve puanla -->
+    <h2 class="ara-baslik" id="odevler">Ödevler</h2>
+    <section class="kart">
+      <details {% if not odevler %}open{% endif %}>
+        <summary>Yeni ödev ver</summary>
+        <form method="post" action="{{ url_for('odev_ver', sinif_id=sinif.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label for="odev-baslik">Başlık</label>
+          <input type="text" id="odev-baslik" name="baslik" maxlength="120" required placeholder="Örnek: Hesap makinesi">
+          <label for="odev-aciklama">Açıklama <span class="istege-bagli">(isteğe bağlı)</span></label>
+          <textarea id="odev-aciklama" name="aciklama" rows="3" maxlength="2000"
+                    placeholder="Ne yapılacak, nasıl teslim edilecek? Örnek: Kodunu GitHub'a yükleyip bağlantısını gönder."></textarea>
+          <label for="odev-tarih">Son teslim tarihi</label>
+          <input type="date" id="odev-tarih" name="son_tarih" required min="{{ bugun }}">
+          <button type="submit" class="ikincil">Ödevi ver</button>
+        </form>
+      </details>
+      {% if odevler %}
+      <ul class="odev-listesi">
+        {% for o in odevler %}
+        <li>
+          <a href="{{ url_for('odev_teslimleri', odev_id=o.id) }}"><strong>{{ o.baslik }}</strong></a>
+          <span class="gecmis-durum">Son tarih: {{ o.son_tarih | gun }}{% if o.son_tarih < bugun %} (geçti){% endif %} ·
+            {{ o.teslim_sayisi }} / {{ ogrenciler | length }} teslim{% if o.bekleyen_sayisi %} · <strong>{{ o.bekleyen_sayisi }} puan bekliyor</strong>{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+
     <!-- Duyurular: öğretmen bütün sınıfa tek seferde mesaj bırakır -->
     <h2 class="ara-baslik" id="duyurular">Duyurular</h2>
     <section class="kart">

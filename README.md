@@ -109,6 +109,8 @@ Yazılıma yeni başlayanlara **kodu yazmadan** yol gösteren yapay zekâ koçu.
 | `templates/mesajlar.html`, `templates/sohbet.html` | Sohbet listesi ve sohbet ekranı (sınıf sohbeti + özel mesaj) |
 | `templates/kullanici.html` | Aynı sınıftakilerin görebildiği kullanıcı profili |
 | `templates/kod_dene.html`, `static/python_isci.js` | Tarayıcıda Python çalıştırma (Pyodide, Web Worker) |
+| `templates/odevler.html`, `templates/odev.html`, `templates/odev_teslimleri.html` | Ödevler, teslim ve puanlama |
+| `templates/grup.html` | Grup projesi: görev panosu |
 | `templates/gizlilik.html` | Hangi verilerin saklandığı, kimin neyi gördüğü |
 | `templates/notlarim.html` | Öğrenci: bütün adım notları, arama ve .md olarak indirme |
 | `demo_veri.py` | Sunum için örnek öğretmen, sınıf ve öğrenciler (`olustur` / `sil`) |
@@ -193,4 +195,5 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma
 - [x] 9. hafta: Mesaj bildirme ve engelleme, kötü kelime süzgeci, gizlilik sayfası
 - [x] 9. hafta: Tarayıcıda Python çalıştırma (Pyodide)
-- [ ] Grup projeleri, sesli-görüntülü görüşme
+- [x] 9. hafta: Mini quiz, ödev teslimi ve puanlama, grup projeleri (görev panosu + grup sohbeti)
+- [ ] Sesli-görüntülü görüşme

@@ -146,6 +146,16 @@ def sahte_yapay_zeka(monkeypatch):
         {"baslik": "Tarif Kutusu", "aciklama": "Malzemeye göre tarif arayan bir program."},
     ])
     monkeypatch.setattr(kodkoc, "ipucu_iste", sahte_ipucu)
+
+    def sahte_quiz(istemci, proje, baslik, icerik, bilgi=""):
+        cagrilar.setdefault("quiz", []).append(baslik)
+        return [{"soru": "append ne yapar?", "secenekler": ["Siler", "Sona ekler", "Sıralar", "Sayar"],
+                 "dogru": 1, "aciklama": "append listenin sonuna eleman ekler."},
+                {"soru": "len([1, 2]) kaçtır?", "secenekler": ["0", "1", "2", "3"],
+                 "dogru": 2, "aciklama": "Listede 2 eleman var."},
+                {"soru": "for döngüsü ne işe yarar?", "secenekler": ["Tekrar", "Silme", "Okuma", "Hiçbiri"],
+                 "dogru": 0, "aciklama": "Bir işi her eleman için tekrarlar."}]
+    monkeypatch.setattr(kodkoc, "quiz_iste", sahte_quiz)
     monkeypatch.setattr(kodkoc, "kaydet", lambda proje, cevap: None)   # .md dosyası yazma
     monkeypatch.setattr(uygulama, "api_anahtari", lambda: "sahte-anahtar")
     return cagrilar

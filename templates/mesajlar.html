@@ -29,6 +29,24 @@
       {% else %}<a href="{{ url_for('sinifim') }}">Öğretmeninin verdiği kodla bir sınıfa katıl →</a>{% endif %}</p>
     {% endif %}
 
+    {% if gruplar %}
+    <h2 class="ara-baslik">Grup sohbetleri</h2>
+    <ul class="sohbet-listesi">
+      {% for gr in gruplar %}
+      <li>
+        <a class="sohbet-ogesi" href="{{ url_for('grup_sohbeti', grup_id=gr.id) }}">
+          <span class="sohbet-adi">{{ gr.ad }} <span class="gecmis-durum">· {{ gr.sinif_adi }}</span></span>
+          {% if gr.okunmamis %}<span class="menu-rozeti" title="{{ gr.okunmamis }} okunmamış mesaj">{{ gr.okunmamis }}</span>{% endif %}
+          <span class="sohbet-son">
+            {% if gr.son_zaman %}{{ gr.son_gonderen }}: {{ 'Bu mesaj silindi' if gr.son_silindi else gr.son_metin | truncate(70) }} · {{ gr.son_zaman | tarih }}
+            {% else %}Henüz mesaj yok.{% endif %}
+          </span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
     <h2 class="ara-baslik">Özel sohbetler</h2>
     {% if kisiler %}
     <ul class="sohbet-listesi">

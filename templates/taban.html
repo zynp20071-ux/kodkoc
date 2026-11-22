@@ -47,6 +47,10 @@
         <!-- Görülmemiş öğretmen duyurusu sayısı -->
         <span class="menu-rozeti" title="{{ g.yeni_duyuru }} yeni duyuru">{{ g.yeni_duyuru }}</span>{% endif %}</a>
       {% endif %}
+      {% if g.kullanici.rol != 'ogretmen' %}
+      <a href="{{ url_for('odevler') }}">Ödevler{% if g.bekleyen_odev %}
+        <span class="menu-rozeti" title="Teslim bekleyen ödev ya da yeni puan">{{ g.bekleyen_odev }}</span>{% endif %}</a>
+      {% endif %}
       <a href="{{ url_for('kod_dene') }}">Kod dene</a>
       <a href="{{ url_for('mesajlar') }}">Mesajlar{% if g.yeni_mesaj %}
         <span class="menu-rozeti" title="{{ g.yeni_mesaj }} okunmamış mesaj">{{ g.yeni_mesaj }}</span>{% endif %}</a>

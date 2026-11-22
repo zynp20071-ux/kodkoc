@@ -22,6 +22,7 @@ dosyasındaki fonksiyonları burada aynen kullanıyoruz.
 """
 
 import csv
+import json
 import html
 import io
 import os
@@ -220,11 +221,13 @@ def kullaniciyi_yukle():
     g.okunmamis = 0
     g.yeni_duyuru = 0             # Görülmemiş sınıf duyurusu sayısı ("Sınıfım" yanındaki rozet)
     g.yeni_mesaj = 0              # Okunmamış mesaj sayısı ("Mesajlar" yanındaki rozet)
+    g.bekleyen_odev = 0           # Teslim edilmemiş ödev + görülmemiş puan ("Ödevler" yanındaki rozet)
     if g.kullanici and request.endpoint != "static":
         g.yeni_mesaj = veritabani.okunmamis_mesaj_sayisi(kullanici_id)
     if g.kullanici and g.kullanici["rol"] == "ogrenci":
         g.okunmamis = veritabani.okunmamis_bildirim_sayisi(kullanici_id)   # Yorum + değerlendirme
         g.yeni_duyuru = veritabani.okunmamis_duyuru_sayisi(kullanici_id)
+        g.bekleyen_odev = veritabani.bekleyen_odev_sayisi(kullanici_id, date.today().isoformat())
 
     # Öğretmen şifreyi sıfırladıysa öğrenci geçici şifreyle girmiştir. Geçici şifreyi
     # öğretmen de bildiği için, öğrenci kendi şifresini belirlemeden başka sayfa açamaz.
@@ -859,6 +862,7 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
     incelemeler = veritabani.yol_haritasinin_incelemeleri(harita_id)
     sorular = veritabani.yol_haritasinin_sorulari(harita_id)       # "Koça soru sor" konuşmaları
     ogretmen_sorulari = veritabani.yol_haritasinin_ogretmen_sorulari(harita_id)   # "Öğretmenime sor"
+    quizler = veritabani.yol_haritasinin_quizleri(harita_id)                     # Mini quizler
 
     # GitHub commit'leri: hepsi (en yeniden eskiye) ve adımlara göre gruplanmış hali
     commitler = veritabani.yol_haritasinin_commitleri(harita_id)
@@ -906,6 +910,8 @@ def yol_haritasi_sayfasi(harita, adim_satirlari, ogretmen_gorunumu=None, yeni_yo
                 for s in sorular.get(satir["id"], [])
             ],
             "soru_hakki": EN_FAZLA_SORU - len(sorular.get(satir["id"], [])),
+            "quiz": quiz_hazirla(quizler.get(satir["id"])),
+            "quiz_hakki": EN_FAZLA_QUIZ - (quizler[satir["id"]]["uretim_sayisi"] if satir["id"] in quizler else 0),
         })
 
     tamamlanan = sum(1 for adim in adimlar if adim["tamamlandi"])
@@ -1362,8 +1368,81 @@ def hesabi_sil():
     return redirect(url_for("giris"))
 
 
+EN_FAZLA_QUIZ = 3              # Bir adım için en fazla kaç kez quiz hazırlanabilir (yapay zekâ kotası)
 EN_UZUN_OGRETMEN_SORUSU = 500
 EN_FAZLA_ACIK_SORU = 5          # Aynı anda cevap bekleyen en fazla soru (öğretmeni boğmasın)
+
+
+def quiz_hazirla(satir):
+    """
+    Veritabanındaki quiz satırını şablon için hazırlar. Cevaplanmadıysa doğru cevaplar
+    şablona HİÇ verilmez (sayfanın kaynağına bakıp cevabı göremesin).
+    """
+    if satir is None:
+        return None
+    sorular = json.loads(satir["sorular"])
+    cevaplar = json.loads(satir["cevaplar"]) if satir["cevaplar"] else None
+    if cevaplar is None:
+        return {"cevaplandi": False, "toplam": len(sorular),
+                "sorular": [{"soru": s["soru"], "secenekler": s["secenekler"]} for s in sorular]}
+    for s, c in zip(sorular, cevaplar):
+        s["cevap"] = c
+    return {"cevaplandi": True, "sorular": sorular, "toplam": len(sorular),
+            "dogru_sayisi": satir["dogru_sayisi"], "zaman": satir["cevap_zamani"]}
+
+
+@app.route("/adim/<int:adim_id>/quiz", methods=["POST"])
+@giris_gerekli
+def quiz_olustur(adim_id):
+    """POST: Adım için yapay zekâya 3 soruluk mini quiz hazırlatır (yapay zekâ hakkından düşer)."""
+    adim = veritabani.adim_getir(adim_id, aktif_id())
+    if adim is None:
+        abort(404)
+    eski = veritabani.quiz_getir(adim_id)
+    if eski and eski["uretim_sayisi"] >= EN_FAZLA_QUIZ:
+        flash("Bu adım için quiz hakkın bitti.", "hata")
+        return redirect(adim_adresi(adim))
+    anahtar = api_anahtari()
+    if not anahtar:
+        return redirect(url_for("ana_sayfa"))
+    if yz_kotasi_doldu():
+        flash(kota_mesaji(), "hata")
+        return redirect(adim_adresi(adim))
+    try:
+        istemci = genai.Client(api_key=anahtar)
+        sorular = kodkoc.quiz_iste(istemci, adim["proje"], adim["baslik"], adim["icerik"], bilgi=adim["bilgi"])
+    except ValueError:
+        flash("Sorular hazırlanırken bir aksilik oldu, bir kez daha dener misin?", "hata")
+        return redirect(adim_adresi(adim))
+    except Exception as hata:
+        flash(anlasilir_hata(hata), "hata")
+        return redirect(adim_adresi(adim))
+    veritabani.yz_kullanimi_ekle(aktif_id())
+    veritabani.quiz_kaydet(adim_id, json.dumps(sorular, ensure_ascii=False))
+    return redirect(url_for("yol_haritasi_goster", harita_id=adim["yol_haritasi_id"]) + f"#quiz-{adim_id}")
+
+
+@app.route("/adim/<int:adim_id>/quiz/cevap", methods=["POST"])
+@giris_gerekli
+def quiz_cevapla(adim_id):
+    """POST: Quiz cevaplarını sunucuda kontrol eder (doğru cevaplar tarayıcıya hiç gitmez)."""
+    adim = veritabani.adim_getir(adim_id, aktif_id())
+    quiz = veritabani.quiz_getir(adim_id) if adim else None
+    if quiz is None:
+        abort(404)
+    sorular = json.loads(quiz["sorular"])
+    cevaplar = []
+    for i in range(len(sorular)):
+        secim = request.form.get(f"s{i}", type=int)
+        cevaplar.append(secim if secim in (0, 1, 2, 3) else None)
+    if None in cevaplar:
+        flash("Bütün soruları cevapla.", "hata")
+        return redirect(url_for("yol_haritasi_goster", harita_id=adim["yol_haritasi_id"]) + f"#quiz-{adim_id}")
+    dogru = sum(1 for s, c in zip(sorular, cevaplar) if s["dogru"] == c)
+    if veritabani.quiz_cevapla(adim_id, json.dumps(cevaplar), dogru):
+        flash(f"{len(sorular)} sorudan {dogru} tanesini bildin!"
+              + (" Harika!" if dogru == len(sorular) else " Açıklamalara göz at."), "bilgi")
+    return redirect(url_for("yol_haritasi_goster", harita_id=adim["yol_haritasi_id"]) + f"#quiz-{adim_id}")
 
 
 @app.route("/adim/<int:adim_id>/ogretmene-sor", methods=["POST"])
@@ -1529,7 +1608,8 @@ def sinifim():
     g.yeni_duyuru = 0                      # Menüdeki sayı bu sayfada hemen sıfırlansın
     return render_template("sinifim.html", siniflar=veritabani.ogrencinin_siniflari(aktif_id()),
                            duyurular=duyurular,
-                           paylasilan_sorular=veritabani.paylasilan_sorular(aktif_id()))
+                           paylasilan_sorular=veritabani.paylasilan_sorular(aktif_id()),
+                           gruplar=veritabani.ogrencinin_gruplari(aktif_id()))
 
 
 @app.route("/sinifim/katil", methods=["POST"])
@@ -1666,6 +1746,8 @@ def sinif_detay(sinif_id):
                            istatistik=sinif_istatistigi(ogrenciler, etkinlikler, bugun),
                            takilanlar=veritabani.takilan_adimlar(sinif_id),
                            duyurular=veritabani.sinifin_duyurulari(sinif_id),
+                           odevler=veritabani.sinifin_odevleri(sinif_id), bugun=date.today().isoformat(),
+                           gruplar=veritabani.sinifin_gruplari(sinif_id),
                            akis=veritabani.sinif_etkinlik_akisi(sinif_id),
                            proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
                            en_uzun_duyuru=EN_UZUN_DUYURU, en_uzun_proje=EN_UZUN_SINIF_PROJESI)
@@ -2204,10 +2286,11 @@ def mesaj_sozlugu(m, sinif=None):
 @giris_gerekli
 def mesajlar():
     """GET: Sınıf sohbetleri, özel sohbetler ve yeni sohbet başlatılabilecek kişiler."""
-    siniflar, kisiler = veritabani.sohbet_listesi(aktif_id())
+    siniflar, kisiler, gruplar = veritabani.sohbet_listesi(aktif_id())
     konusulanlar = {k["diger_id"] for k in kisiler}
     yeni_kisiler = [k for k in veritabani.mesaj_atabilecegi_kisiler(aktif_id()) if k["id"] not in konusulanlar]
-    return render_template("mesajlar.html", siniflar=siniflar, kisiler=kisiler, yeni_kisiler=yeni_kisiler)
+    return render_template("mesajlar.html", siniflar=siniflar, kisiler=kisiler, gruplar=gruplar,
+                           yeni_kisiler=yeni_kisiler)
 
 
 @app.route("/sinif/<int:sinif_id>/sohbet", methods=["GET", "POST"])
@@ -2299,6 +2382,15 @@ def sohbet_yeni():
                    for m in veritabani.sinif_mesajlari(sinif_id, sonra, izleyen_id=aktif_id())]
         if yeniler:
             veritabani.okundu_yap(aktif_id(), yeniler[-1]["id"], sinif_id=sinif_id)
+    elif request.args.get("grup", type=int):
+        grup_id = request.args.get("grup", type=int)
+        grup = veritabani.grubu_gorebilir_mi(aktif_id(), grup_id)
+        if grup is None:
+            abort(404)
+        yeniler = [mesaj_sozlugu(m, grup)
+                   for m in veritabani.grup_mesajlari(grup_id, sonra, izleyen_id=aktif_id())]
+        if yeniler:
+            veritabani.grup_okundu_yap(aktif_id(), grup_id, yeniler[-1]["id"])
     elif kisi_id:
         yeniler = [mesaj_sozlugu(m) for m in veritabani.ozel_mesajlar(aktif_id(), kisi_id, sonra)]
         if yeniler:
@@ -2315,10 +2407,12 @@ def mesaj_sil(mesaj_id):
     """POST: Mesajı siler. Kendi mesajını herkes; sınıf sohbetindeki her mesajı o sınıfın öğretmeni."""
     m = veritabani.mesaj_getir(mesaj_id)
     if m is None or not (m["gonderen_id"] == aktif_id()
-                         or (m["sinif_id"] and m["ogretmen_id"] == aktif_id())):
+                         or ((m["sinif_id"] or m["grup_id"]) and m["ogretmen_id"] == aktif_id())):
         abort(404)
     veritabani.mesaj_sil(mesaj_id)
     flash("Mesaj silindi.", "bilgi")
+    if m["grup_id"]:
+        return redirect(url_for("grup_sohbeti", grup_id=m["grup_id"]))
     if m["sinif_id"]:
         return redirect(url_for("sinif_sohbeti", sinif_id=m["sinif_id"]))
     diger = m["alici_id"] if m["gonderen_id"] == aktif_id() else m["gonderen_id"]
@@ -2347,8 +2441,12 @@ def mesaj_bildir(mesaj_id):
     m = veritabani.mesaj_getir(mesaj_id)
     if m is None or g.kullanici["rol"] != "ogrenci" or m["gonderen_id"] == aktif_id():
         abort(404)
-    gorebilir = (veritabani.sinifta_mi(aktif_id(), m["sinif_id"]) is not None if m["sinif_id"]
-                 else m["alici_id"] == aktif_id())
+    if m["grup_id"]:
+        gorebilir = veritabani.grubu_gorebilir_mi(aktif_id(), m["grup_id"]) is not None
+    elif m["sinif_id"]:
+        gorebilir = veritabani.sinifta_mi(aktif_id(), m["sinif_id"]) is not None
+    else:
+        gorebilir = m["alici_id"] == aktif_id()
     if not gorebilir:
         abort(404)
     sebep = request.form.get("sebep", "diger")
@@ -2356,6 +2454,8 @@ def mesaj_bildir(mesaj_id):
         sebep = "diger"
     veritabani.sikayet_ekle(mesaj_id, aktif_id(), sebep)
     flash("Mesaj öğretmenine bildirildi. Teşekkürler; istersen kişiyi profilinden engelleyebilirsin.", "bilgi")
+    if m["grup_id"]:
+        return redirect(url_for("grup_sohbeti", grup_id=m["grup_id"]))
     if m["sinif_id"]:
         return redirect(url_for("sinif_sohbeti", sinif_id=m["sinif_id"]))
     return redirect(url_for("ozel_sohbet", kisi_id=m["gonderen_id"]))
@@ -2434,6 +2534,249 @@ def kod_dene():
             abort(404)
     hak = EN_FAZLA_INCELEME - veritabani.adimin_inceleme_sayisi(adim_id) if adim else 0
     return render_template("kod_dene.html", adim=adim, inceleme_hakki=hak, en_uzun_kod=EN_UZUN_KOD)
+
+
+# ---------------------------------------------------------------------------
+# Ödevler ve teslim
+# ---------------------------------------------------------------------------
+
+EN_UZUN_ODEV_BASLIGI = 120
+EN_UZUN_ODEV_ACIKLAMASI = 2000
+EN_UZUN_TESLIM = 5000
+
+
+def baglanti_gecerli_mi(adres):
+    """Teslimdeki bağlantı sadece http(s) olabilir ("javascript:..." gibi tehlikeli adresler olmasın)."""
+    return adres.startswith(("https://", "http://")) and len(adres) <= 300 and " " not in adres
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/odev", methods=["POST"])
+@ogretmen_gerekli
+def odev_ver(sinif_id):
+    """POST: Öğretmen sınıfına son tarihli bir ödev verir."""
+    if veritabani.sinif_getir(sinif_id, aktif_id()) is None:
+        abort(404)
+    baslik = request.form.get("baslik", "").strip()
+    aciklama = request.form.get("aciklama", "").strip()
+    tarih, hata = hedef_tarihi_oku(request.form.get("son_tarih", "").strip())
+    if not baslik or len(baslik) > EN_UZUN_ODEV_BASLIGI or len(aciklama) > EN_UZUN_ODEV_ACIKLAMASI:
+        flash(f"Ödev başlığı 1-{EN_UZUN_ODEV_BASLIGI}, açıklaması en fazla {EN_UZUN_ODEV_ACIKLAMASI} karakter olmalı.", "hata")
+    elif hata:
+        flash(hata, "hata")
+    else:
+        veritabani.odev_ekle(sinif_id, baslik, aciklama, tarih.isoformat())
+        flash("Ödev verildi. Öğrenciler menüdeki “Ödevler” sayfasında görecek.", "bilgi")
+    return redirect(url_for("sinif_detay", sinif_id=sinif_id) + "#odevler")
+
+
+def ogretmenin_odevi(odev_id):
+    odev = veritabani.odev_getir(odev_id)
+    if odev is None or odev["ogretmen_id"] != aktif_id():
+        abort(404)
+    return odev
+
+
+@app.route("/ogretmen/odev/<int:odev_id>", methods=["GET"])
+@ogretmen_gerekli
+def odev_teslimleri(odev_id):
+    """GET: Öğretmen bir ödevin teslimlerini görür ve puanlar."""
+    odev = ogretmenin_odevi(odev_id)
+    teslimler = veritabani.odevin_teslimleri(odev_id)
+    return render_template("odev_teslimleri.html", odev=odev, teslimler=teslimler,
+                           teslim_eden=sum(1 for t in teslimler if t["teslim_id"]))
+
+
+@app.route("/ogretmen/teslim/<int:teslim_id>/puan", methods=["POST"])
+@ogretmen_gerekli
+def teslim_puanla(teslim_id):
+    """POST: Öğretmen teslime 0-100 puan ve yorum verir (öğrenci bildirim alır)."""
+    teslim = veritabani.teslim_bilgisi(teslim_id)
+    if teslim is None or teslim["ogretmen_id"] != aktif_id():
+        abort(404)
+    puan = request.form.get("puan", type=int)
+    yorum = request.form.get("yorum", "").strip()
+    if puan is None or not 0 <= puan <= 100 or len(yorum) > EN_UZUN_DUYURU:
+        flash("Puan 0 ile 100 arasında olmalı.", "hata")
+    else:
+        veritabani.teslim_puanla(teslim_id, puan, yorum)
+        flash("Puan kaydedildi.", "bilgi")
+    return redirect(url_for("odev_teslimleri", odev_id=teslim["odev_id"]) + f"#teslim-{teslim_id}")
+
+
+@app.route("/ogretmen/odev/<int:odev_id>/sil", methods=["POST"])
+@ogretmen_gerekli
+def odev_sil(odev_id):
+    odev = ogretmenin_odevi(odev_id)
+    veritabani.odev_sil(odev_id)
+    flash("Ödev ve teslimleri silindi.", "bilgi")
+    return redirect(url_for("sinif_detay", sinif_id=odev["sinif_id"]) + "#odevler")
+
+
+@app.route("/odevler", methods=["GET"])
+@giris_gerekli
+def odevler():
+    """GET: Öğrencinin bütün sınıflarındaki ödevler ve durumları."""
+    bugun = date.today().isoformat()
+    liste = []
+    for o in veritabani.ogrencinin_odevleri(aktif_id()):
+        if o["puan"] is not None:
+            durum = "puanlandi"
+        elif o["teslim_id"]:
+            durum = "teslim"
+        elif o["son_tarih"] < bugun:
+            durum = "gecti"
+        else:
+            durum = "bekliyor"
+        liste.append({**dict(o), "durum": durum, "kalan": (date.fromisoformat(o["son_tarih"]) - date.today()).days})
+    return render_template("odevler.html", odevler=liste)
+
+
+@app.route("/odev/<int:odev_id>", methods=["GET", "POST"])
+@giris_gerekli
+def odev(odev_id):
+    """
+    GET: Ödevin ayrıntısı ve öğrencinin teslimi. POST: Teslim eder ya da teslimi günceller.
+    Sadece o sınıfın öğrencisi. Son tarih geçse de teslim edilebilir ama "geç teslim" yazar.
+    """
+    o = veritabani.odev_getir(odev_id)
+    if o is None or g.kullanici["rol"] != "ogrenci" or not veritabani.sinifta_mi(aktif_id(), o["sinif_id"]):
+        abort(404)
+    if request.method == "POST":
+        metin = request.form.get("metin", "").strip()
+        adres = request.form.get("baglanti", "").strip()
+        if not metin and not adres:
+            flash("Teslim için bir açıklama/kod ya da bağlantı yaz.", "hata")
+        elif len(metin) > EN_UZUN_TESLIM:
+            flash(f"Teslim metni en fazla {EN_UZUN_TESLIM} karakter olabilir.", "hata")
+        elif adres and not baglanti_gecerli_mi(adres):
+            flash("Bağlantı https:// ile başlayan bir adres olmalı (ör. GitHub deposu).", "hata")
+        elif not veritabani.teslim_kaydet(odev_id, aktif_id(), metin, adres):
+            flash("Bu ödev puanlandı; teslimi artık değiştiremezsin.", "hata")
+        else:
+            flash("Ödevin teslim edildi!" + (" (Son tarih geçtiği için geç teslim olarak görünecek.)"
+                                             if o["son_tarih"] < date.today().isoformat() else ""), "bilgi")
+        return redirect(url_for("odev", odev_id=odev_id))
+
+    teslim = veritabani.teslim_getir(odev_id, aktif_id())
+    yeni_puan = bool(teslim and teslim["puan"] is not None and teslim["goruldu"] == 0)
+    if yeni_puan:
+        veritabani.teslimi_goruldu_yap(odev_id, aktif_id())
+    return render_template("odev.html", odev=o, teslim=teslim, yeni_puan=yeni_puan,
+                           gecti=o["son_tarih"] < date.today().isoformat(), en_uzun=EN_UZUN_TESLIM)
+
+
+# ---------------------------------------------------------------------------
+# Grup projeleri
+# ---------------------------------------------------------------------------
+
+EN_UZUN_GOREV = 200
+GOREV_DURUMLARI = {"yapilacak": "Yapılacak", "yapiliyor": "Yapılıyor", "bitti": "Bitti"}
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/grup", methods=["POST"])
+@ogretmen_gerekli
+def grup_kur(sinif_id):
+    """POST: Öğretmen sınıfta bir grup kurar ve öğrencileri seçer (onay kutuları: 'uye')."""
+    if veritabani.sinif_getir(sinif_id, aktif_id()) is None:
+        abort(404)
+    ad = request.form.get("ad", "").strip()
+    proje = request.form.get("proje", "").strip()
+    uyeler = [int(x) for x in request.form.getlist("uye") if x.isdigit()]
+    if not ad or len(ad) > 60 or len(proje) > EN_UZUN_SINIF_PROJESI:
+        flash("Grup adı 1-60 karakter olmalı.", "hata")
+    elif not uyeler:
+        flash("Gruba en az bir öğrenci seç.", "hata")
+    else:
+        grup_id = veritabani.grup_olustur(sinif_id, ad, proje, uyeler)
+        flash("Grup kuruldu. Öğrenciler “Sınıfım” ve “Mesajlar” sayfalarında görecek.", "bilgi")
+        return redirect(url_for("grup_sayfasi", grup_id=grup_id))
+    return redirect(url_for("sinif_detay", sinif_id=sinif_id) + "#gruplar")
+
+
+@app.route("/grup/<int:grup_id>", methods=["GET"])
+@giris_gerekli
+def grup_sayfasi(grup_id):
+    """GET: Grubun projesi, üyeleri ve görev panosu. Grubun üyeleri ve sınıfın öğretmeni görebilir."""
+    grup = veritabani.grubu_gorebilir_mi(aktif_id(), grup_id)
+    if grup is None:
+        abort(404)
+    uyeler = [u for u in veritabani.grup_uyeleri_listesi(grup_id) if u["rol"] == "ogrenci"]
+    gorevler = veritabani.grup_gorevleri(grup_id)
+    pano = {durum: [g_ for g_ in gorevler if g_["durum"] == durum] for durum in GOREV_DURUMLARI}
+    return render_template("grup.html", grup=grup, uyeler=uyeler, pano=pano, durumlar=GOREV_DURUMLARI,
+                           ogretmen_mi=grup["ogretmen_id"] == aktif_id(),
+                           ilerleme=ilerleme_hesapla(len(pano["bitti"]), len(gorevler)), en_uzun=EN_UZUN_GOREV)
+
+
+def gorev_formu_atanan(grup_id):
+    """Formdaki 'atanan' değerini okur; sadece grubun üyesi atanabilir (boş = kimse)."""
+    atanan = request.form.get("atanan", type=int)
+    uyeler = {u["id"] for u in veritabani.grup_uyeleri_listesi(grup_id) if u["rol"] == "ogrenci"}
+    return atanan if atanan in uyeler else None
+
+
+@app.route("/grup/<int:grup_id>/gorev", methods=["POST"])
+@giris_gerekli
+def gorev_ekle(grup_id):
+    if veritabani.grubu_gorebilir_mi(aktif_id(), grup_id) is None:
+        abort(404)
+    metin = request.form.get("metin", "").strip()
+    if not metin or len(metin) > EN_UZUN_GOREV:
+        flash(f"Görev 1-{EN_UZUN_GOREV} karakter olmalı.", "hata")
+    else:
+        veritabani.gorev_ekle(grup_id, kufur_suz(metin), gorev_formu_atanan(grup_id), aktif_id())
+    return redirect(url_for("grup_sayfasi", grup_id=grup_id) + "#pano")
+
+
+@app.route("/gorev/<int:gorev_id>", methods=["POST"])
+@giris_gerekli
+def gorev_guncelle(gorev_id):
+    """POST: Görevin durumunu ve kime atandığını değiştirir ya da siler (islem=sil)."""
+    gorev = veritabani.gorev_getir(gorev_id)
+    if gorev is None or veritabani.grubu_gorebilir_mi(aktif_id(), gorev["grup_id"]) is None:
+        abort(404)
+    if request.form.get("islem") == "sil":
+        veritabani.gorev_sil(gorev_id)
+    else:
+        durum = request.form.get("durum", gorev["durum"])
+        if durum not in GOREV_DURUMLARI:
+            durum = gorev["durum"]
+        veritabani.gorev_guncelle(gorev_id, durum, gorev_formu_atanan(gorev["grup_id"]))
+    return redirect(url_for("grup_sayfasi", grup_id=gorev["grup_id"]) + "#pano")
+
+
+@app.route("/grup/<int:grup_id>/sohbet", methods=["GET", "POST"])
+@giris_gerekli
+def grup_sohbeti(grup_id):
+    """Grup sohbeti: sınıf sohbetiyle aynı ekran, sadece grubun üyeleri (ve öğretmen)."""
+    grup = veritabani.grubu_gorebilir_mi(aktif_id(), grup_id)
+    if grup is None:
+        abort(404)
+    if request.method == "POST":
+        metin = mesaj_metnini_oku()
+        if metin:
+            veritabani.grup_mesaji_ekle(aktif_id(), grup_id, metin)
+        return redirect(url_for("grup_sohbeti", grup_id=grup_id) + "#yaz")
+    mesaj_listesi = [mesaj_sozlugu(m, grup) for m in veritabani.grup_mesajlari(grup_id, izleyen_id=aktif_id())]
+    son_id = mesaj_listesi[-1]["id"] if mesaj_listesi else 0
+    if son_id:
+        veritabani.grup_okundu_yap(aktif_id(), grup_id, son_id)
+    return render_template("sohbet.html", baslik=grup["ad"], grup=grup, mesaj_listesi=mesaj_listesi,
+                           son_id=son_id, yazabilir=True, uyeler=veritabani.grup_uyeleri_listesi(grup_id),
+                           gonder_adresi=url_for("grup_sohbeti", grup_id=grup_id),
+                           yoklama_adresi=url_for("sohbet_yeni", grup=grup_id),
+                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI, sebepler=SIKAYET_SEBEPLERI)
+
+
+@app.route("/ogretmen/grup/<int:grup_id>/sil", methods=["POST"])
+@ogretmen_gerekli
+def grup_sil(grup_id):
+    grup = veritabani.grup_getir(grup_id)
+    if grup is None or grup["ogretmen_id"] != aktif_id():
+        abort(404)
+    veritabani.grup_sil(grup_id)
+    flash("Grup silindi (görevleri ve sohbeti dahil).", "bilgi")
+    return redirect(url_for("sinif_detay", sinif_id=grup["sinif_id"]) + "#gruplar")
 
 
 @app.route("/gizlilik", methods=["GET"])

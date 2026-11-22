@@ -1,0 +1,43 @@
+{% extends "taban.html" %}
+{# Öğrenci: bir ödevin ayrıntısı ve teslim formu (9. hafta) #}
+
+{% block baslik %}{{ odev.baslik }} · Ödev · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('odevler') }}" class="geri-baglanti">← Ödevler</a></p>
+    <h1>{{ odev.baslik }}</h1>
+    <p class="gecmis-durum">{{ odev.sinif_adi }} · Son tarih: <strong>{{ odev.son_tarih | gun }}</strong>{% if gecti %} (geçti){% endif %}</p>
+    {% if odev.aciklama %}<section class="kart"><p class="hakkimda-metni">{{ odev.aciklama }}</p></section>{% endif %}
+
+    {% if teslim and teslim.puan is not none %}
+    <section class="kart degerlendirme">
+      <p class="ipucu-etiket">Öğretmeninin değerlendirmesi{% if yeni_puan %} <span class="yeni-etiketi">Yeni</span>{% endif %}</p>
+      <p class="odev-puani"><strong>{{ teslim.puan }}</strong> / 100</p>
+      {% if teslim.yorum %}<p class="hakkimda-metni">{{ teslim.yorum }}</p>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if teslim %}
+    <h2 class="ara-baslik">Teslimin</h2>
+    <p class="gecmis-durum">{{ teslim.zaman | tarih }}{% if teslim.zaman[:10] > odev.son_tarih %} · geç teslim{% endif %}</p>
+    {% if teslim.baglanti %}<p><a href="{{ teslim.baglanti }}" rel="noopener noreferrer nofollow" target="_blank">{{ teslim.baglanti }}</a></p>{% endif %}
+    {% if teslim.metin %}<pre class="teslim-metni">{{ teslim.metin }}</pre>{% endif %}
+    {% endif %}
+
+    {% if not teslim or teslim.puan is none %}
+    <section class="kart">
+      <h2 class="ara-baslik">{{ 'Teslimini güncelle' if teslim else 'Teslim et' }}</h2>
+      {% if gecti %}<p class="bilgi-notu">Son tarih geçti; teslim edebilirsin ama “geç teslim” olarak görünecek.</p>{% endif %}
+      <form method="post" action="{{ url_for('odev', odev_id=odev.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="baglanti">Bağlantı <span class="istege-bagli">(ör. GitHub deposu)</span></label>
+        <input type="url" id="baglanti" name="baglanti" maxlength="300" placeholder="https://github.com/..." value="{{ teslim.baglanti if teslim and teslim.baglanti else '' }}">
+        <label for="metin">Açıklama ya da kod</label>
+        <textarea id="metin" name="metin" rows="8" maxlength="{{ en_uzun }}" class="kod-alani" spellcheck="false"
+                  placeholder="Ne yaptığını anlat ya da kodunu yapıştır.">{{ teslim.metin if teslim and teslim.metin else '' }}</textarea>
+        <button type="submit">{{ 'Güncelle' if teslim else 'Teslim et' }}</button>
+      </form>
+      <p class="ipucu-yazi">Öğretmenin puan verene kadar teslimini değiştirebilirsin.</p>
+    </section>
+    {% endif %}
+{% endblock %}

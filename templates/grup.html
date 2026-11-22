@@ -1,0 +1,75 @@
+{% extends "taban.html" %}
+{# Grup projesi: projenin açıklaması, üyeler, görev panosu (yapılacak / yapılıyor / bitti) (9. hafta) #}
+
+{% block baslik %}{{ grup.ad }} · Grup · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket">
+      {% if ogretmen_mi %}<a href="{{ url_for('sinif_detay', sinif_id=grup.sinif_id) }}#gruplar" class="geri-baglanti">← {{ grup.sinif_adi }}</a>
+      {% else %}<a href="{{ url_for('sinifim') }}" class="geri-baglanti">← Sınıfım</a>{% endif %}
+    </p>
+    <div class="sohbet-ust">
+      <h1>{{ grup.ad }}</h1>
+      <a class="dugme-link" href="{{ url_for('grup_sohbeti', grup_id=grup.id) }}">Grup sohbeti</a>
+    </div>
+    <p class="gecmis-durum">{{ grup.sinif_adi }} · Üyeler:
+      {% for u in uyeler %}<a href="{{ url_for('profil_goster', kullanici_id=u.id) }}">{{ u.kullanici_adi }}</a>{{ ', ' if not loop.last }}{% else %}henüz yok{% endfor %}</p>
+    {% if grup.proje %}<section class="kart"><p class="ipucu-etiket">Grubun projesi</p><p class="hakkimda-metni">{{ grup.proje }}</p></section>{% endif %}
+
+    <div class="ilerleme-satiri">
+      <span class="ilerleme-cubugu"><span class="ilerleme-dolu" style="width: {{ ilerleme }}%"></span></span>
+      <span class="gecmis-durum">{{ pano.bitti | length }} / {{ pano.values() | map('length') | sum }} görev bitti · %{{ ilerleme }}</span>
+    </div>
+
+    <h2 class="ara-baslik" id="pano">Görev panosu</h2>
+    <form method="post" action="{{ url_for('gorev_ekle', grup_id=grup.id) }}" class="satir-form gorev-ekle">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <label for="gorev-metin" class="gizli">Yeni görev</label>
+      <div class="satir">
+        <input type="text" id="gorev-metin" name="metin" maxlength="{{ en_uzun }}" required placeholder="Örnek: Menü ekranını yap">
+        <label for="gorev-atanan" class="gizli">Kim yapacak?</label>
+        <select id="gorev-atanan" name="atanan">
+          <option value="">Kimse (sonra seçilir)</option>
+          {% for u in uyeler %}<option value="{{ u.id }}" {% if u.id == g.kullanici.id %}selected{% endif %}>{{ u.kullanici_adi }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="ikincil">Görev ekle</button>
+      </div>
+    </form>
+
+    <div class="pano">
+      {% for durum, ad in durumlar.items() %}
+      <section class="pano-sutunu">
+        <h3>{{ ad }} ({{ pano[durum] | length }})</h3>
+        {% for gorev in pano[durum] %}
+        <div class="gorev-karti" id="gorev-{{ gorev.id }}">
+          <p>{{ gorev.metin }}</p>
+          <form method="post" action="{{ url_for('gorev_guncelle', gorev_id=gorev.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <label for="durum-{{ gorev.id }}" class="gizli">Durum</label>
+            <select id="durum-{{ gorev.id }}" name="durum">
+              {% for d, d_ad in durumlar.items() %}<option value="{{ d }}" {% if d == gorev.durum %}selected{% endif %}>{{ d_ad }}</option>{% endfor %}
+            </select>
+            <label for="atanan-{{ gorev.id }}" class="gizli">Kim yapıyor?</label>
+            <select id="atanan-{{ gorev.id }}" name="atanan">
+              <option value="">Kimse</option>
+              {% for u in uyeler %}<option value="{{ u.id }}" {% if u.id == gorev.atanan_id %}selected{% endif %}>{{ u.kullanici_adi }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="isaret">Kaydet</button>
+            <button type="submit" name="islem" value="sil" class="isaret" onclick="return confirm('Görev silinsin mi?');">Sil</button>
+          </form>
+        </div>
+        {% else %}
+        <p class="ipucu-yazi">Görev yok.</p>
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+
+    {% if ogretmen_mi %}
+    <form method="post" action="{{ url_for('grup_sil', grup_id=grup.id) }}"
+          onsubmit="return confirm('Grup, görevleri ve sohbeti silinsin mi?');">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <button type="submit" class="sil">Grubu sil</button>
+    </form>
+    {% endif %}
+{% endblock %}

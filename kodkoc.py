@@ -305,6 +305,56 @@ def ipucu_iste(istemci, proje, adim_basligi, adim_icerigi, onceki_ipuclari, soru
     return yapay_zekaya_sor(istemci, mesaj, IPUCU_TALIMATI, sicaklik=0.5)
 
 
+# 9. hafta: Mini quiz - adımın konularından 3 çoktan seçmeli soru
+QUIZ_TALIMATI = """
+Sen "KodKoç" adında, yazılıma yeni başlayan öğrencilere yardım eden bir koçsun.
+Öğrenci yol haritasındaki bir adımın konularını anlayıp anlamadığını sınamak istiyor.
+Bu adımla ilgili tam olarak 3 çoktan seçmeli soru hazırla.
+
+KURALLAR:
+- Sorular adımın "Öğrenilecek konular" kısmındaki kavramları sınasın; ezber değil anlama sorusu olsun.
+- Her sorunun 4 seçeneği ve tek bir doğru cevabı olsun. Yanlış seçenekler mantıklı görünsün.
+- Kısa kod parçası sorabilirsin ("Bu kod ne yazdırır?") ama projenin çözümünü verme.
+- "aciklama": doğru cevabın NEDEN doğru olduğunu 1-2 cümleyle anlat.
+- Sade Türkçe kullan. Öğrencinin bildiklerine uygun zorlukta sor.
+
+CEVAP BİÇİMİ: Sadece JSON. Başka hiçbir şey yazma. "dogru": doğru seçeneğin sırası (0, 1, 2 ya da 3).
+[{"soru": "...", "secenekler": ["...", "...", "...", "..."], "dogru": 0, "aciklama": "..."}, ...]
+"""
+
+
+def quiz_kontrol(veri):
+    """
+    Yapay zekânın döndürdüğü quiz verisini kontrol edip temizler; bozuksa ValueError.
+    Ayrı bir fonksiyon: yapay zekâ olmadan, bozuk örneklerle test edilebilsin diye.
+    """
+    if not isinstance(veri, list):
+        raise ValueError("Quiz bir liste değil.")
+    sorular = []
+    for oge in veri[:3]:
+        if not isinstance(oge, dict):
+            continue
+        soru, secenekler, dogru = oge.get("soru"), oge.get("secenekler"), oge.get("dogru")
+        if (isinstance(soru, str) and soru.strip() and isinstance(secenekler, list) and len(secenekler) == 4
+                and all(isinstance(s, str) and s.strip() for s in secenekler)
+                and isinstance(dogru, int) and not isinstance(dogru, bool) and 0 <= dogru <= 3):
+            sorular.append({"soru": soru.strip()[:400],
+                            "secenekler": [s.strip()[:200] for s in secenekler],
+                            "dogru": dogru,
+                            "aciklama": str(oge.get("aciklama") or "").strip()[:400]})
+    if len(sorular) < 2:
+        raise ValueError("Yeterli geçerli soru yok.")
+    return sorular
+
+
+def quiz_iste(istemci, proje, adim_basligi, adim_icerigi, bilgi=""):
+    """Bir adım için mini quiz hazırlar: [{"soru", "secenekler", "dogru", "aciklama"}, ...]"""
+    mesaj = (f"Öğrencinin projesi: {proje}\n{bildikleri_satiri(bilgi)}"
+             f"Adım: {adim_basligi}\n{adim_icerigi}")
+    metin = yapay_zekaya_sor(istemci, mesaj, QUIZ_TALIMATI, sicaklik=0.7, json_cevap=True)
+    return quiz_kontrol(json.loads(metin))
+
+
 def proje_fikirleri_iste(istemci, bilgi, ilgi):
     """
     Öğrenciye 3 proje fikri önerir. [{"baslik": ..., "aciklama": ...}, ...] döndürür.

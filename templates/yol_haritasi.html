@@ -290,6 +290,61 @@
         </div>
         {% endif %}
 
+        <!-- Mini quiz: öğrenci çözer, öğretmen sonucu görür. Doğru cevaplar ancak cevaplanınca gelir. -->
+        <div class="quiz" id="quiz-{{ adim.id }}">
+          {% if adim.quiz and adim.quiz.cevaplandi %}
+          <p class="ipucu-etiket">Mini quiz · {{ adim.quiz.dogru_sayisi }} / {{ adim.quiz.toplam }} doğru · {{ adim.quiz.zaman | tarih }}</p>
+          {% for s in adim.quiz.sorular %}
+          <div class="quiz-sorusu">
+            <p><strong>{{ loop.index }}. {{ s.soru }}</strong></p>
+            <ul>
+              {% for sec in s.secenekler %}
+              <li class="{% if loop.index0 == s.dogru %}dogru{% elif loop.index0 == s.cevap %}yanlis{% endif %}">
+                {{ '✓' if loop.index0 == s.dogru else ('✗' if loop.index0 == s.cevap else '·') }} {{ sec }}
+                {% if loop.index0 == s.cevap %}<span class="gecmis-durum">({{ 'öğrencinin cevabı' if ogretmen_gorunumu else 'senin cevabın' }})</span>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% if s.aciklama %}<p class="ipucu-yazi">{{ s.aciklama }}</p>{% endif %}
+          </div>
+          {% endfor %}
+          {% if not ogretmen_gorunumu and adim.quiz_hakki > 0 %}
+          <form method="post" action="{{ url_for('quiz_olustur', adim_id=adim.id) }}" class="bekleyen-form">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <button type="submit" class="ikincil">Yeni sorularla tekrar dene ({{ adim.quiz_hakki }} hak)</button>
+            <p class="bekle">KodKoç soru hazırlıyor…</p>
+          </form>
+          {% endif %}
+          {% elif adim.quiz and not ogretmen_gorunumu %}
+          <form method="post" action="{{ url_for('quiz_cevapla', adim_id=adim.id) }}" class="quiz-formu">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <p class="ipucu-etiket">Mini quiz · kendini sına</p>
+            {% for s in adim.quiz.sorular %}
+            {% set soru_no = loop.index0 %}
+            <fieldset class="quiz-sorusu">
+              <legend>{{ loop.index }}. {{ s.soru }}</legend>
+              {% for sec in s.secenekler %}
+              <label class="quiz-secenegi"><input type="radio" name="s{{ soru_no }}" value="{{ loop.index0 }}" required> {{ sec }}</label>
+              {% endfor %}
+            </fieldset>
+            {% endfor %}
+            <button type="submit">Cevaplarımı kontrol et</button>
+          </form>
+          {% elif adim.quiz %}
+          <p class="gecmis-durum">Mini quiz hazırlanmış, öğrenci henüz cevaplamadı.</p>
+          {% elif not ogretmen_gorunumu and adim.quiz_hakki > 0 %}
+          <details>
+            <summary>Kendini sına: mini quiz</summary>
+            <p class="ipucu-yazi">Bu adımın konularından 3 çoktan seçmeli soru. Cevaplayınca neden doğru olduğunu görürsün.</p>
+            <form method="post" action="{{ url_for('quiz_olustur', adim_id=adim.id) }}" class="bekleyen-form">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="ikincil">3 soru hazırla</button>
+              <p class="bekle">KodKoç soru hazırlıyor…</p>
+            </form>
+          </details>
+          {% endif %}
+        </div>
+
         {% if ogretmen_gorunumu %}
           {% if adim.not_metni %}
           <div class="ogrenci-notu">
