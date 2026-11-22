@@ -413,9 +413,16 @@ def anlasilir_hata(hata):
         return "Yapay zekâ şu an çok yoğun. Birkaç kez denedim olmadı; bir dakika sonra tekrar dener misin?"
     if CANLI:
         # Canlıda hatanın ayrıntısını ziyaretçiye göstermiyoruz (sunucu hakkında bilgi
-        # sızdırabilir); ayrıntı, sunucunun kayıtlarına (log) yazılır.
+        # sızdırabilir); ayrıntı, sunucunun kayıtlarına (log) yazılır. Sadece hata KODU
+        # (ör. 403) gösterilir: gizli bir şey içermez ama sorunu bulmayı çok kolaylaştırır.
         app.logger.error("Yapay zekâ hatası: %s", hata)
-        return "Yapay zekâya şu an bağlanılamadı. Biraz sonra tekrar dener misin?"
+        kod = getattr(hata, "code", None)
+        if kod in (400, 401, 403):
+            # Yanlış/iptal edilmiş API anahtarı, izin ya da bölge sorunu: beklemekle düzelmez
+            return (f"Sitenin yapay zekâ ayarında bir sorun var (hata kodu {kod}). "
+                    "Lütfen öğretmenine ya da siteyi yönetene haber ver.")
+        return ("Yapay zekâya şu an bağlanılamadı. Biraz sonra tekrar dener misin?"
+                + (f" (hata kodu {kod})" if isinstance(kod, int) else ""))
     return f"Yapay zekâya bağlanılamadı. İnternetini ve API anahtarını kontrol et. ({hata})"
 
 

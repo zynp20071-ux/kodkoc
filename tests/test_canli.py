@@ -64,6 +64,21 @@ def test_canlida_hata_ayrintisi_gosterilmez(canli, kayit_ol, monkeypatch):
     assert "bağlanılamadı" in sayfa
 
 
+@pytest.mark.parametrize("kod, beklenen", [(403, "ayarında bir sorun var (hata kodu 403)"),
+                                           (400, "hata kodu 400"), (404, "bağlanılamadı")])
+def test_canlida_anahtar_hatasi_kodu_gosterilir(canli, kayit_ol, monkeypatch, kod, beklenen):
+    class SahteHata(Exception):
+        pass
+
+    def bozuk(istemci, proje, bilgi):
+        hata = SahteHata("API key not valid: gizli-ayrinti")
+        hata.code = kod
+        raise hata
+    monkeypatch.setattr(kodkoc, "yol_haritasi_iste", bozuk)
+    sayfa = kayit_ol("ali").post("/yol-haritasi", data={"proje": "Hesap makinesi"}).text
+    assert beklenen in sayfa and "gizli-ayrinti" not in sayfa
+
+
 def test_canlida_md_dosyasi_yazilmaz(canli, kayit_ol, monkeypatch):
     yazilanlar = []
     monkeypatch.setattr(kodkoc, "kaydet", lambda proje, cevap: yazilanlar.append(proje))
