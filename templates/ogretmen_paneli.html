@@ -18,6 +18,35 @@
       </form>
     </section>
 
+    {% if sikayetler %}
+    <!-- Öğrencilerin bildirdiği mesajlar. Öğretmen sadece bildirilen mesajı görür, sohbetin tamamını değil. -->
+    <section class="kart bildirimler" id="bildirimler">
+      <h2 class="ara-baslik">Bildirilen mesajlar ({{ sikayetler | length }})</h2>
+      <ul>
+        {% for s in sikayetler %}
+        <li>
+          <strong>{{ s.gonderen_adi }}</strong> · {{ s.sinif_adi ~ ' sohbeti' if s.sinif_adi else 'özel mesaj' }} · {{ s.mesaj_zamani | tarih }}
+          <p class="bekleyen-soru-metni">{{ 'Bu mesaj silinmiş.' if s.silindi else s.metin }}</p>
+          <span class="gecmis-durum">Bildiren: {{ s.bildiren_adi }} · {{ sebepler.get(s.sebep, s.sebep) }} · {{ s.zaman | tarih }}</span>
+          <div class="satir">
+            {% if not s.silindi %}
+            <form method="post" action="{{ url_for('sikayet_mesaji_sil', sikayet_id=s.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="sil">Mesajı sil</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('sikayet_kapat', sikayet_id=s.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <button type="submit" class="ikincil">Kapat</button>
+            </form>
+            <a href="{{ url_for('profil_goster', kullanici_id=s.gonderen_id) }}">Profili →</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
     {% if bekleyen_sorular %}
     <!-- Öğrencilerin "Öğretmenime sor" ile gönderdiği, henüz cevaplanmamış sorular (en eskisi üstte) -->
     <section class="kart bekleyen-sorular">

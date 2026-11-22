@@ -123,9 +123,20 @@ GUVENLIK_BASLIKLARI = {
 }
 
 
+# Tarayıcıda Python çalıştıran işçi dosyası (static/python_isci.js) için ayrı, daha geniş bir CSP.
+# Pyodide'yi jsdelivr'den indirir ve WebAssembly derler ('wasm-unsafe-eval'). Bu izinler SADECE
+# işçiye verilir: işçinin sayfaya (HTML'e, çerezlere, formlara) erişimi yoktur, sayfaların kendi
+# CSP'si değişmez.
+ISCI_CSP = ("default-src 'self'; "
+            "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'wasm-unsafe-eval'; "
+            "connect-src 'self' https://cdn.jsdelivr.net")
+
+
 @app.after_request
 def guvenlik_basliklari_ekle(cevap):
     """Her cevaptan SONRA çalışır ve güvenlik başlıklarını ekler."""
+    if request.path == "/static/python_isci.js":
+        cevap.headers["Content-Security-Policy"] = ISCI_CSP
     for ad, deger in GUVENLIK_BASLIKLARI.items():
         cevap.headers.setdefault(ad, deger)
     if CANLI:
@@ -225,7 +236,7 @@ def kullaniciyi_yukle():
 
 
 # Geçici şifreyle giren öğrencinin açabildiği sayfalar (şifre değiştirme, çıkış, sağlık kontrolü, CSS)
-SIFRE_DEGISMEDEN_ACIK_SAYFALAR = {"profil", "sifre_degistir", "cikis", "saglik", "static"}
+SIFRE_DEGISMEDEN_ACIK_SAYFALAR = {"profil", "sifre_degistir", "cikis", "saglik", "static", "gizlilik"}
 
 
 # ---------------------------------------------------------------------------
@@ -1305,6 +1316,7 @@ def profil():
                            bugun_calisti=bugun in gunler,
                            takvim=takvim_olustur(etkinlik, bugun),
                            en_kisa_sifre=EN_KISA_SIFRE, en_uzun_hakkimda=EN_UZUN_HAKKIMDA,
+                           engellenenler=veritabani.engelledikleri(aktif_id()),
                            yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI)
 
 
@@ -1568,7 +1580,8 @@ def ogretmen_paneli():
             "baslamayan": len(ozet) - len(baslayan),
         })
     return render_template("ogretmen_paneli.html", siniflar=siniflar,
-                           bekleyen_sorular=veritabani.ogretmenin_bekleyen_sorulari(aktif_id()))
+                           bekleyen_sorular=veritabani.ogretmenin_bekleyen_sorulari(aktif_id()),
+                           sikayetler=veritabani.ogretmenin_sikayetleri(aktif_id()), sebepler=SIKAYET_SEBEPLERI)
 
 
 @app.route("/ogretmen/sinif", methods=["POST"])
@@ -2117,6 +2130,38 @@ EN_UZUN_HAKKIMDA = 300
 YOKLAMA_SANIYESI = 5             # Sohbet sayfası kaç saniyede bir yeni mesaj sorar
 
 
+# Kötü kelime süzgeci. Kelimenin TAMAMI listedeyse ya da "kök" ile başlıyorsa yıldızlanır.
+# Kökler bilerek uzun ve belirgin seçildi: "göt" gibi kısa bir kök "götür"ü de yakalardı.
+KOTU_KELIMELER = {
+    "amk", "aq", "amq", "amına", "aminakoyim", "oç", "piç", "sik", "sikerim", "sikeyim",
+    "siktir", "yarrak", "yarak", "göt", "ibne", "kahpe", "gavat", "pezevenk", "orospu",
+    "salak", "aptal", "gerizekalı", "gerizekali", "dangalak", "şerefsiz", "serefsiz",
+}
+# Bilerek listede OLMAYANLAR: "mal" (mal varlığı), "got"/"pic" (İngilizce "I got", "pic") gibi
+# başka anlamı da olan kelimeler. Süzgeç tam değildir; asıl koruma bildir/engelle ve öğretmen.
+KOTU_KOKLER = ("siktir", "orospu", "yarrak", "pezevenk", "şerefsiz", "serefsiz", "gerizekal", "aminakoy")
+
+
+def turkce_kucuk(metin):
+    """Türkçe küçük harf: Python'un lower()'ı 'I'yı 'i' yapar, Türkçede 'ı' olmalı."""
+    return metin.replace("I", "ı").replace("İ", "i").lower()
+
+
+def kufur_suz(metin):
+    """Mesajdaki kötü kelimeleri ilk harfi kalacak şekilde yıldızlar: 'salak' -> 's****'."""
+    def degistir_(eslesme):
+        kelime = eslesme.group(0)
+        kucuk = turkce_kucuk(kelime)
+        if kucuk in KOTU_KELIMELER or kucuk.startswith(KOTU_KOKLER):
+            return kelime[0] + "*" * (len(kelime) - 1)
+        return kelime
+    return re.sub(r"\w+", degistir_, metin)
+
+
+SIKAYET_SEBEPLERI = {"kufur": "Küfür / hakaret", "zorbalik": "Zorbalık / tehdit",
+                     "spam": "Spam / rahatsız edici", "diger": "Diğer"}
+
+
 def mesaj_atabilir_mi(gonderen_id, alici_id):
     return any(k["id"] == alici_id for k in veritabani.mesaj_atabilecegi_kisiler(gonderen_id))
 
@@ -2132,7 +2177,7 @@ def mesaj_metnini_oku():
     if veritabani.son_dakika_mesaj_sayisi(aktif_id()) >= EN_FAZLA_MESAJ_DAKIKA:
         flash("Çok hızlı mesaj gönderiyorsun; biraz bekleyip tekrar dene.", "hata")
         return None
-    return metin
+    return kufur_suz(metin)
 
 
 def mesaj_sozlugu(m, sinif=None):
@@ -2149,6 +2194,9 @@ def mesaj_sozlugu(m, sinif=None):
         "zaman": tarih_bicimle(m["zaman"]),
         "benim": m["gonderen_id"] == aktif_id(),
         "silebilir": silebilir and not m["silindi"],
+        # Öğrenci, başka bir öğrencinin mesajını öğretmene bildirebilir
+        "bildirebilir": (g.kullanici["rol"] == "ogrenci" and m["gonderen_id"] != aktif_id()
+                         and m["gonderen_rol"] == "ogrenci" and not m["silindi"]),
     }
 
 
@@ -2181,7 +2229,7 @@ def sinif_sohbeti(sinif_id):
                 veritabani.mesaj_ekle(aktif_id(), metin, sinif_id=sinif_id)
         return redirect(url_for("sinif_sohbeti", sinif_id=sinif_id) + "#yaz")
 
-    mesaj_listesi = [mesaj_sozlugu(m, sinif) for m in veritabani.sinif_mesajlari(sinif_id)]
+    mesaj_listesi = [mesaj_sozlugu(m, sinif) for m in veritabani.sinif_mesajlari(sinif_id, izleyen_id=aktif_id())]
     son_id = mesaj_listesi[-1]["id"] if mesaj_listesi else 0
     if son_id:
         veritabani.okundu_yap(aktif_id(), son_id, sinif_id=sinif_id)
@@ -2190,7 +2238,7 @@ def sinif_sohbeti(sinif_id):
                            uyeler=veritabani.sinif_uyeleri_listesi(sinif_id),
                            gonder_adresi=url_for("sinif_sohbeti", sinif_id=sinif_id),
                            yoklama_adresi=url_for("sohbet_yeni", sinif=sinif_id),
-                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI)
+                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI, sebepler=SIKAYET_SEBEPLERI)
 
 
 @app.route("/mesaj/<int:kisi_id>", methods=["GET", "POST"])
@@ -2226,9 +2274,11 @@ def ozel_sohbet(kisi_id):
         veritabani.okundu_yap(aktif_id(), son_id, diger_id=kisi_id)
     return render_template("sohbet.html", baslik=kisi["kullanici_adi"], kisi=kisi, mesaj_listesi=mesaj_listesi,
                            son_id=son_id, yazabilir=yazabilir,
+                           engelli=(veritabani.engelledi_mi(aktif_id(), kisi_id)
+                                    or veritabani.engelledi_mi(kisi_id, aktif_id())),
                            gonder_adresi=url_for("ozel_sohbet", kisi_id=kisi_id),
                            yoklama_adresi=url_for("sohbet_yeni", kisi=kisi_id),
-                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI)
+                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI, sebepler=SIKAYET_SEBEPLERI)
 
 
 @app.route("/sohbet/yeni", methods=["GET"])
@@ -2245,7 +2295,8 @@ def sohbet_yeni():
         sinif = veritabani.sinifta_mi(aktif_id(), sinif_id)
         if sinif is None:
             abort(404)
-        yeniler = [mesaj_sozlugu(m, sinif) for m in veritabani.sinif_mesajlari(sinif_id, sonra)]
+        yeniler = [mesaj_sozlugu(m, sinif)
+                   for m in veritabani.sinif_mesajlari(sinif_id, sonra, izleyen_id=aktif_id())]
         if yeniler:
             veritabani.okundu_yap(aktif_id(), yeniler[-1]["id"], sinif_id=sinif_id)
     elif kisi_id:
@@ -2286,6 +2337,111 @@ def sohbet_ayari(sinif_id):
     return redirect(url_for("sinif_sohbeti", sinif_id=sinif_id))
 
 
+@app.route("/mesaj/<int:mesaj_id>/bildir", methods=["POST"])
+@giris_gerekli
+def mesaj_bildir(mesaj_id):
+    """
+    POST: Öğrenci, rahatsız edici bir mesajı öğretmenine bildirir.
+    Sadece görebildiği mesajı bildirebilir: sınıfındaki sohbetten ya da kendisine gelen özel mesaj.
+    """
+    m = veritabani.mesaj_getir(mesaj_id)
+    if m is None or g.kullanici["rol"] != "ogrenci" or m["gonderen_id"] == aktif_id():
+        abort(404)
+    gorebilir = (veritabani.sinifta_mi(aktif_id(), m["sinif_id"]) is not None if m["sinif_id"]
+                 else m["alici_id"] == aktif_id())
+    if not gorebilir:
+        abort(404)
+    sebep = request.form.get("sebep", "diger")
+    if sebep not in SIKAYET_SEBEPLERI:
+        sebep = "diger"
+    veritabani.sikayet_ekle(mesaj_id, aktif_id(), sebep)
+    flash("Mesaj öğretmenine bildirildi. Teşekkürler; istersen kişiyi profilinden engelleyebilirsin.", "bilgi")
+    if m["sinif_id"]:
+        return redirect(url_for("sinif_sohbeti", sinif_id=m["sinif_id"]))
+    return redirect(url_for("ozel_sohbet", kisi_id=m["gonderen_id"]))
+
+
+def sikayet_bul(sikayet_id):
+    """Öğretmenin görebileceği açık bir bildirim mi? Değilse 404."""
+    for s in veritabani.ogretmenin_sikayetleri(aktif_id()):
+        if s["id"] == sikayet_id:
+            return s
+    abort(404)
+
+
+@app.route("/ogretmen/sikayet/<int:sikayet_id>/sil", methods=["POST"])
+@ogretmen_gerekli
+def sikayet_mesaji_sil(sikayet_id):
+    """POST: Öğretmen bildirilen mesajı siler ve bildirimi kapatır."""
+    s = sikayet_bul(sikayet_id)
+    veritabani.mesaj_sil(s["mesaj_id"])
+    veritabani.sikayetleri_kapat(s["mesaj_id"])
+    flash("Mesaj silindi ve bildirim kapatıldı.", "bilgi")
+    return redirect(url_for("ogretmen_paneli") + "#bildirimler")
+
+
+@app.route("/ogretmen/sikayet/<int:sikayet_id>/kapat", methods=["POST"])
+@ogretmen_gerekli
+def sikayet_kapat(sikayet_id):
+    """POST: Öğretmen baktı, sorun görmedi: mesaj kalır, bildirim kapanır."""
+    s = sikayet_bul(sikayet_id)
+    veritabani.sikayetleri_kapat(s["mesaj_id"])
+    flash("Bildirim kapatıldı.", "bilgi")
+    return redirect(url_for("ogretmen_paneli") + "#bildirimler")
+
+
+@app.route("/kullanici/<int:kullanici_id>/engelle", methods=["POST"])
+@giris_gerekli
+def engelle(kullanici_id):
+    """
+    POST: Öğrenci başka bir öğrenciyi engeller ya da engeli kaldırır (formdaki 'islem').
+    Öğretmen engellenemez (öğrenci öğretmenine her zaman ulaşabilmeli, öğretmen de ona);
+    öğretmen istemediği öğrenciyi zaten sınıftan çıkarabilir.
+    """
+    kisi = veritabani.kullanici_getir(kullanici_id)
+    if (kisi is None or kullanici_id == aktif_id() or kisi["rol"] != "ogrenci"
+            or g.kullanici["rol"] != "ogrenci"):
+        abort(404)
+    if request.form.get("islem") == "kaldir":
+        veritabani.engeli_kaldir(aktif_id(), kullanici_id)
+        flash(f"{kisi['kullanici_adi']} için engel kaldırıldı.", "bilgi")
+    else:
+        if not veritabani.ortak_siniflar(aktif_id(), kullanici_id) and not veritabani.ozel_mesajlar(aktif_id(), kullanici_id):
+            abort(404)
+        veritabani.engelle(aktif_id(), kullanici_id)
+        flash(f"{kisi['kullanici_adi']} engellendi: mesajlarını görmeyeceksin, sana özel mesaj atamaz.", "bilgi")
+    # "geri" formdan geliyor; sadece site içi bir adrese ("/..." ama "//başka-site" değil) dönülür.
+    # Yoksa biri, kullanıcıyı KodKoç'tan başka bir siteye yönlendiren bir form hazırlayabilirdi.
+    geri = request.form.get("geri", "")
+    if not geri.startswith("/") or geri.startswith("//") or "\\" in geri:
+        geri = url_for("mesajlar")
+    return redirect(geri)
+
+
+@app.route("/kod-dene", methods=["GET"])
+@giris_gerekli
+def kod_dene():
+    """
+    GET: Python'u tarayıcıda çalıştırma sayfası. ?adim=12 ile açılırsa o adımın başlığı görünür,
+    kod o adım için ayrı saklanır ve tek tıkla "Kodumu incelet"e gönderilebilir.
+    Kod sunucuda ÇALIŞMAZ; sayfa sadece arayüzü verir (bkz. static/python_isci.js).
+    """
+    adim = None
+    adim_id = request.args.get("adim", type=int)
+    if adim_id:
+        adim = veritabani.adim_getir(adim_id, aktif_id())      # Sadece kendi adımı
+        if adim is None:
+            abort(404)
+    hak = EN_FAZLA_INCELEME - veritabani.adimin_inceleme_sayisi(adim_id) if adim else 0
+    return render_template("kod_dene.html", adim=adim, inceleme_hakki=hak, en_uzun_kod=EN_UZUN_KOD)
+
+
+@app.route("/gizlilik", methods=["GET"])
+def gizlilik():
+    """GET: Hangi verileri neden sakladığımızı anlatan sayfa (giriş gerekmez)."""
+    return render_template("gizlilik.html")
+
+
 @app.route("/kullanici/<int:kullanici_id>", methods=["GET"])
 @giris_gerekli
 def profil_goster(kullanici_id):
@@ -2295,11 +2451,14 @@ def profil_goster(kullanici_id):
     """
     kisi = veritabani.hesap_bilgileri(kullanici_id)
     ortak = veritabani.ortak_siniflar(aktif_id(), kullanici_id)
-    if kisi is None or (kullanici_id != aktif_id() and not ortak):
+    engelledi = veritabani.engelledi_mi(aktif_id(), kullanici_id)
+    if kisi is None or (kullanici_id != aktif_id() and not ortak and not engelledi):
         abort(404)
     rozetler = [r for r in rozetleri_hesapla(kullanici_id) if r["kazanildi"]] if kisi["rol"] == "ogrenci" else []
     return render_template("kullanici.html", kisi=kisi, kisi_id=kullanici_id, ortak=ortak, rozetler=rozetler,
-                           kendisi=kullanici_id == aktif_id(),
+                           kendisi=kullanici_id == aktif_id(), engelledi=engelledi,
+                           engelleyebilir=(kullanici_id != aktif_id() and kisi["rol"] == "ogrenci"
+                                           and g.kullanici["rol"] == "ogrenci"),
                            mesaj_atabilir=kullanici_id != aktif_id() and mesaj_atabilir_mi(aktif_id(), kullanici_id),
                            ogrencim=(g.kullanici["rol"] == "ogretmen"
                                      and veritabani.ogretmen_gorebilir_mi(aktif_id(), kullanici_id)))
@@ -2313,7 +2472,7 @@ def hakkimda_kaydet():
     if len(metin) > EN_UZUN_HAKKIMDA:
         flash(f"Hakkımda yazısı en fazla {EN_UZUN_HAKKIMDA} karakter olabilir.", "hata")
     else:
-        veritabani.hakkimda_kaydet(aktif_id(), metin)
+        veritabani.hakkimda_kaydet(aktif_id(), kufur_suz(metin))
         flash("Profilin güncellendi.", "bilgi")
     return redirect(url_for("profil") + "#hakkimda")
 

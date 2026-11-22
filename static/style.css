@@ -1348,3 +1348,41 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 }
 .hakkimda-metni { white-space: pre-wrap; margin: 14px 0; }
 .profil-dugmeleri { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* --- Bildir / engelle / altbilgi --- */
+.mesaj-bildir { display: inline-block; font-size: 12px; margin-right: 8px; }
+.mesaj-bildir summary { cursor: pointer; color: var(--gri); }
+.mesaj-bildir form { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.mesaj-bildir select { margin: 0; padding: 2px 6px; font-size: 13px; }
+.bildirimler { border-color: var(--hata-yazi); }
+.bildirimler ul { list-style: none; padding: 0; margin: 0; }
+.bildirimler li { border-top: 1px solid var(--cizgi); padding: 10px 0; }
+.bildirimler .satir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.profil-dugmeleri form { display: inline; }
+.kisi-listesi form { display: inline; margin-left: auto; }
+.altbilgi { text-align: center; padding: 24px 0 32px; font-size: 14px; }
+.altbilgi a { color: var(--gri); }
+.gizlilik-metni h2 { font-size: 18px; margin-top: 20px; }
+.gizlilik-metni li { margin-bottom: 6px; }
+
+/* --- Kod dene (tarayıcıda Python) --- */
+.kod-dene textarea#kod { min-height: 260px; }
+.girdi-kutusu { margin: 8px 0; }
+.girdi-kutusu summary { cursor: pointer; color: var(--vurgu); font-weight: 600; }
+.kod-dugmeleri { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.kod-dugmeleri button { margin: 0; }
+.kod-ciktisi {
+  background: var(--kod-zemin);
+  color: var(--koyu);
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 80px;
+  max-height: 400px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+}
+.kod-ciktisi .hata-yazisi { color: var(--hata-yazi); }
+.kod-ciktisi .girdi-yazisi { color: var(--yesil); font-weight: 600; }
+.kod-dene-baglantisi { display: inline-block; margin: 6px 0 10px; font-weight: 600; color: var(--yesil); }

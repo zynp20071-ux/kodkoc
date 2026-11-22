@@ -65,6 +65,23 @@
       </form>
     </section>
 
+    {% if engellenenler %}
+    <section class="kart profil-bolumu" id="engellenenler">
+      <h2 class="ara-baslik">Engellediklerin</h2>
+      <ul class="kisi-listesi">
+        {% for k in engellenenler %}
+        <li>{{ k.kullanici_adi }}
+          <form method="post" action="{{ url_for('engelle', kullanici_id=k.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <input type="hidden" name="islem" value="kaldir">
+            <input type="hidden" name="geri" value="{{ url_for('profil') }}#engellenenler">
+            <button type="submit" class="isaret">Engeli kaldır</button>
+          </form></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
     <!-- Şifre değiştirme -->
     <section class="kart profil-bolumu" id="sifre">
       <h2 class="ara-baslik">Şifremi değiştir</h2>

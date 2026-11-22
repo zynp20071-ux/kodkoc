@@ -1,0 +1,147 @@
+{% extends "taban.html" %}
+{# Kod dene: Python'u tarayıcıda çalıştırma (9. hafta). Kod sunucuya gitmez; static/python_isci.js
+   içindeki işçi (Web Worker) Pyodide ile çalıştırır. Bir adımdan açıldıysa kod o adım için saklanır. #}
+
+{% block baslik %}Kod dene · KodKoç{% endblock %}
+
+{% block icerik %}
+    {% if adim %}
+    <p class="etiket"><a href="{{ url_for('yol_haritasi_goster', harita_id=adim.yol_haritasi_id) }}#adim-{{ adim.id }}" class="geri-baglanti">← Adıma dön</a></p>
+    <h1>{{ adim.baslik | adim_basligi(adim.sira) }}</h1>
+    {% else %}
+    <h1>Kod dene</h1>
+    {% endif %}
+    <p class="aciklama">Python kodunu yaz ve çalıştır. Kod senin tarayıcında çalışır; kaydetmene gerek yok, bu bilgisayarda hatırlanır.</p>
+
+    <section class="kart kod-dene" id="kod-dene" data-isci="{{ url_for('static', filename='python_isci.js') }}"
+             data-anahtar="kodkoc-kod-{{ adim.id if adim else 'genel' }}">
+      <label for="kod">Kodun</label>
+      <textarea id="kod" rows="14" class="kod-alani" spellcheck="false" maxlength="{{ en_uzun_kod }}"
+                placeholder="isim = input(&quot;Adın ne? &quot;)&#10;print(&quot;Merhaba&quot;, isim)"></textarea>
+
+      <details class="girdi-kutusu">
+        <summary>Girdiler <span class="istege-bagli">(kodun input() kullanıyorsa)</span></summary>
+        <label for="girdi" class="gizli">Girdiler</label>
+        <textarea id="girdi" rows="3" spellcheck="false" placeholder="Her satıra bir girdi. Örnek:&#10;Ali&#10;15"></textarea>
+      </details>
+
+      <div class="satir kod-dugmeleri">
+        <button type="button" id="calistir" disabled>Python yükleniyor…</button>
+        <button type="button" id="durdur" class="ikincil" hidden>Durdur</button>
+        <span class="gecmis-durum" id="durum">İlk açılışta Python indiriliyor (yaklaşık 10 MB), biraz sürebilir.</span>
+      </div>
+
+      <label for="cikti">Çıktı</label>
+      <pre id="cikti" class="kod-ciktisi" aria-live="polite"></pre>
+      <noscript><p class="hata">Kod çalıştırmak için JavaScript açık olmalı.</p></noscript>
+    </section>
+
+    {% if adim and inceleme_hakki > 0 %}
+    <!-- Kodu tek tıkla "Kodumu incelet"e gönder: aynı form, aynı sınırlar (kalan hak, uzunluk) -->
+    <form method="post" action="{{ url_for('kod_incele', adim_id=adim.id) }}" class="kart" id="incelet-formu">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <input type="hidden" name="kod" id="incelet-kod">
+      <label for="aciklama">Takıldığın yer <span class="istege-bagli">(isteğe bağlı)</span></label>
+      <input type="text" id="aciklama" name="aciklama" maxlength="300" placeholder="Örnek: Liste boşken hata veriyor">
+      <button type="submit" class="ikincil">Bu kodu KodKoç'a incelet ({{ inceleme_hakki }} hak kaldı)</button>
+    </form>
+    {% endif %}
+
+    <p class="ipucu-yazi">İpucu: Bitmeyen bir döngü yazarsan 10 saniye sonra kod kendiliğinden durdurulur.
+      Python'un standart kütüphanesi (math, random, datetime...) çalışır; dosya ve internet işlemleri çalışmaz.</p>
+{% endblock %}
+
+{% block betik %}
+  <script>
+    (function () {
+      var bolum = document.getElementById("kod-dene");
+      var kod = document.getElementById("kod");
+      var girdi = document.getElementById("girdi");
+      var cikti = document.getElementById("cikti");
+      var calistir = document.getElementById("calistir");
+      var durdur = document.getElementById("durdur");
+      var durum = document.getElementById("durum");
+      var SURE = 10000;                         // En fazla 10 saniye
+      var isci, zamanlayici;
+
+      // Kodu bu bilgisayarda hatırla (localStorage: tarayıcının küçük kalıcı deposu)
+      try { kod.value = localStorage.getItem(bolum.dataset.anahtar) || ""; } catch (e) {}
+      kod.addEventListener("input", function () {
+        try { localStorage.setItem(bolum.dataset.anahtar, kod.value); } catch (e) {}
+      });
+
+      // Tab tuşu: kutudan çıkmak yerine 4 boşluk koysun (Python'da girinti önemli)
+      kod.addEventListener("keydown", function (o) {
+        if (o.key === "Tab" && !o.shiftKey) {
+          o.preventDefault();
+          var b = kod.selectionStart;
+          kod.setRangeText("    ", b, kod.selectionEnd, "end");
+        }
+      });
+
+      function yaz(metin, sinif) {
+        var parca = document.createElement("span");
+        if (sinif) parca.className = sinif;
+        parca.textContent = metin;               // textContent: çıktı HTML olarak yorumlanmaz
+        cikti.appendChild(parca);
+      }
+
+      function bitir(mesaj) {
+        clearTimeout(zamanlayici);
+        calistir.disabled = false;
+        calistir.textContent = "Çalıştır";
+        durdur.hidden = true;
+        durum.textContent = mesaj || "";
+      }
+
+      function isciKur() {
+        isci = new Worker(bolum.dataset.isci);
+        isci.onmessage = function (o) {
+          var m = o.data;
+          if (m.tur === "hazir") bitir("Python hazır.");
+          else if (m.tur === "cikti") yaz(m.metin);
+          else if (m.tur === "girdi") yaz(m.metin, "girdi-yazisi");
+          else if (m.tur === "hata") yaz(m.metin, "hata-yazisi");
+          else if (m.tur === "bitti") bitir("Bitti.");
+        };
+        isci.onerror = function () { bitir("Python yüklenemedi. İnternet bağlantını kontrol edip sayfayı yenile."); };
+      }
+
+      // Durdurmanın tek yolu işçiyi kapatıp yenisini açmak (Python yeniden yüklenir, önbellekten hızlı gelir)
+      function zorlaDurdur(mesaj) {
+        isci.terminate();
+        yaz("\n" + mesaj + "\n", "hata-yazisi");
+        calistir.disabled = true;
+        calistir.textContent = "Python yükleniyor…";
+        durdur.hidden = true;
+        isciKur();
+      }
+
+      calistir.addEventListener("click", function () {
+        cikti.textContent = "";
+        calistir.disabled = true;
+        calistir.textContent = "Çalışıyor…";
+        durdur.hidden = false;
+        durum.textContent = "";
+        isci.postMessage({ kod: kod.value, girdi: girdi.value });
+        zamanlayici = setTimeout(function () {
+          zorlaDurdur("Kod 10 saniyede bitmedi ve durduruldu. Bitmeyen bir döngü olabilir mi?");
+        }, SURE);
+      });
+      durdur.addEventListener("click", function () {
+        clearTimeout(zamanlayici);
+        zorlaDurdur("Durduruldu.");
+      });
+
+      var form = document.getElementById("incelet-formu");
+      if (form) {
+        form.addEventListener("submit", function (o) {
+          if (!kod.value.trim()) { o.preventDefault(); durum.textContent = "Önce bir kod yaz."; return; }
+          document.getElementById("incelet-kod").value = kod.value;
+        });
+      }
+
+      isciKur();
+    })();
+  </script>
+{% endblock %}

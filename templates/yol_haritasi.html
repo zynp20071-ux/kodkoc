@@ -358,6 +358,9 @@
           <p class="ipucu-bitti">Bu adımın bütün soru haklarını kullandın.</p>
           {% endif %}
 
+          <!-- Tarayıcıda Python: kodu yazıp hemen çalıştırabileceği sayfa -->
+          <a class="kod-dene-baglantisi" href="{{ url_for('kod_dene', adim=adim.id) }}">▶ Bu adımın kodunu Python'da dene</a>
+
           {% if adim.inceleme_hakki > 0 %}
           <details>
             <summary>Kodumu incelet</summary>

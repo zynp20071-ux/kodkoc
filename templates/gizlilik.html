@@ -1,0 +1,56 @@
+{% extends "taban.html" %}
+{# Gizlilik: KodKoç'un hangi verileri neden sakladığı, kimin neyi gördüğü (9. hafta) #}
+
+{% block baslik %}Gizlilik · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart gizlilik-metni">
+      <h1>Gizlilik ve verilerin</h1>
+      <p class="aciklama">KodKoç bir okul projesidir. Burada hangi bilgilerini sakladığımızı, kimlerin görebildiğini
+        ve nasıl silebileceğini kısaca anlatıyoruz.</p>
+
+      <h2>Neleri saklıyoruz?</h2>
+      <ul>
+        <li><strong>Hesap:</strong> kullanıcı adın, rolün (öğrenci/öğretmen), kayıt tarihin ve şifrenin
+          <em>hash</em>'i. Şifrenin kendisini saklamıyoruz; biz de göremeyiz.</li>
+        <li><strong>Çalışmaların:</strong> proje anlatımların, yol haritaların, tamamladığın adımlar, aldığın ipuçları,
+          notların, koça sorduğun sorular, incelettiğin kodlar ve hedef tarihlerin.</li>
+        <li><strong>Sınıf ve mesajlar:</strong> katıldığın sınıflar, sınıf sohbetine ve özel sohbetlere yazdığın mesajlar,
+          "Hakkımda" yazın, engellediğin kişiler ve bildirdiğin mesajlar.</li>
+        <li><strong>GitHub:</strong> bağladıysan herkese açık deponun adresi ve commit mesajların.</li>
+        <li>E-posta adresi, telefon, gerçek ad ya da fotoğraf <strong>istemiyoruz</strong>.</li>
+      </ul>
+
+      <h2>Kim neyi görebilir?</h2>
+      <ul>
+        <li><strong>Öğretmenin:</strong> katıldığın sınıfın öğretmeni yol haritalarını, ilerlemeni, ipuçlarını, notlarını
+          ve sorularını görebilir ama değiştiremez. Sınıf sohbetindeki mesajları görür ve silebilir.</li>
+        <li><strong>Öğrenciler arası özel mesajlar</strong> öğretmen tarafından görülmez. Bir mesajı öğretmenine
+          <em>bildirirsen</em>, öğretmen sadece o tek mesajı görür.</li>
+        <li><strong>Sınıf arkadaşların:</strong> profilini (kullanıcı adı, Hakkımda yazısı, rozetler, yol haritası ve
+          adım sayısı) ve sınıf sohbetindeki mesajlarını görür. Yol haritalarının içeriğini göremez.</li>
+        <li>Sınıfında olmayan biri profilini göremez, sana mesaj atamaz.</li>
+      </ul>
+
+      <h2>Yapay zekâ</h2>
+      <p>Yol haritası, ipucu, kod incelemesi, koça soru ve proje fikri için yazdıkların Google'ın Gemini yapay zekâsına
+        gönderilir. Kullanıcı adın gönderilmez. Mesajların, notların ve profilin yapay zekâya <strong>gönderilmez</strong>.</p>
+
+      <h2>Nerede saklanıyor?</h2>
+      <p>Site Render'da, veritabanı Neon'da (PostgreSQL) çalışır; ikisi de Avrupa'daki (Frankfurt) sunuculardadır.
+        Tarayıcında sadece giriş yaptığını hatırlayan bir oturum çerezi ve tema seçimin saklanır; reklam ya da
+        takip çerezi yoktur.</p>
+
+      <h2>Verilerimi nasıl silerim?</h2>
+      <p>Giriş yap → kullanıcı adına tıkla (Profilim) → <strong>Hesabımı sil</strong>. Hesabın ve sana ait her şey
+        (yol haritaları, notlar, mesajlar...) kalıcı olarak silinir. Bir sınıftan ayrılırsan öğretmenin artık
+        çalışmalarını göremez. Tek bir mesajını sohbetten silebilirsin.</p>
+
+      <h2>Güvenlik</h2>
+      <ul>
+        <li>Site HTTPS ile çalışır; 5 yanlış şifre denemesinden sonra hesap 10 dakika kilitlenir.</li>
+        <li>Rahatsız edici bir mesaj alırsan <strong>Bildir</strong> düğmesiyle öğretmenine haber ver ve kişiyi
+          profilinden <strong>Engelle</strong>.</li>
+      </ul>
+    </section>
+{% endblock %}

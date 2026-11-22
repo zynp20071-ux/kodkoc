@@ -24,7 +24,18 @@
         {% if mesaj_atabilir %}<a class="dugme-link" href="{{ url_for('ozel_sohbet', kisi_id=kisi_id) }}">Mesaj gönder</a>{% endif %}
         {% if ogrencim %}<a class="dugme-link ikincil" href="{{ url_for('ogrenci_detay', ogrenci_id=kisi_id) }}">İlerlemesini gör</a>{% endif %}
         {% if kendisi %}<a class="dugme-link ikincil" href="{{ url_for('profil') }}#hakkimda">Profilimi düzenle</a>{% endif %}
+        {% if engelleyebilir %}
+        <!-- Engelle: engellenen kişinin mesajları görünmez, ikisi özel mesajlaşamaz -->
+        <form method="post" action="{{ url_for('engelle', kullanici_id=kisi_id) }}"
+              {% if not engelledi %}onsubmit="return confirm('Bu kişi engellensin mi? Mesajlarını görmeyeceksin ve sana özel mesaj atamayacak.');"{% endif %}>
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <input type="hidden" name="islem" value="{{ 'kaldir' if engelledi else 'engelle' }}">
+          <input type="hidden" name="geri" value="{{ url_for('profil_goster', kullanici_id=kisi_id) }}">
+          <button type="submit" class="sil">{{ 'Engeli kaldır' if engelledi else 'Engelle' }}</button>
+        </form>
+        {% endif %}
       </div>
+      {% if engelledi %}<p class="bilgi-notu">Bu kişiyi engelledin. Mesajlarını görmüyorsun.</p>{% endif %}
     </section>
 
     {% if kisi.rol == 'ogrenci' %}

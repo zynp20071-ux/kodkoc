@@ -47,6 +47,7 @@
         <!-- Görülmemiş öğretmen duyurusu sayısı -->
         <span class="menu-rozeti" title="{{ g.yeni_duyuru }} yeni duyuru">{{ g.yeni_duyuru }}</span>{% endif %}</a>
       {% endif %}
+      <a href="{{ url_for('kod_dene') }}">Kod dene</a>
       <a href="{{ url_for('mesajlar') }}">Mesajlar{% if g.yeni_mesaj %}
         <span class="menu-rozeti" title="{{ g.yeni_mesaj }} okunmamış mesaj">{{ g.yeni_mesaj }}</span>{% endif %}</a>
       <!-- Çıkış bir POST formu: başka bir site, bir bağlantıyla kullanıcıyı habersizce çıkaramasın -->
@@ -71,6 +72,9 @@
 
     {% block icerik %}{% endblock %}
   </main>
+  <footer class="altbilgi">
+    <a href="{{ url_for('gizlilik') }}">Gizlilik ve verilerin</a>
+  </footer>
 
   <script>
     // Tema düğmesi: açık <-> koyu arasında geçiş yapar ve seçimi tarayıcıda hatırlar
