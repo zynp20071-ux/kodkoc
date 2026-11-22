@@ -1275,3 +1275,76 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 .not-ogesi:first-of-type { border-top: none; }
 .not-basligi { font-weight: 600; }
 .not-metni { white-space: pre-wrap; margin: 6px 0 0; }
+
+/* --- Mesajlar: sohbet listesi --- */
+.sohbet-listesi { list-style: none; padding: 0; margin: 0 0 16px; }
+.sohbet-ogesi {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--cizgi);
+  border-radius: 12px;
+  background: var(--kart);
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: var(--koyu);
+}
+.sohbet-ogesi:hover { border-color: var(--vurgu); }
+.sohbet-adi { font-weight: 700; }
+.sohbet-son { grid-column: 1 / -1; font-size: 14px; color: var(--gri); }
+.ogretmen-etiketi {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--yesil-yazi);
+  background: var(--yesil-acik);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.kisi-listesi { list-style: none; padding: 0; margin: 8px 0; }
+.kisi-listesi li { display: flex; align-items: center; gap: 8px; padding: 6px 0; flex-wrap: wrap; }
+.dugme-link.kucuk { padding: 4px 12px; font-size: 14px; margin-left: auto; }
+.dugme-link.ikincil { color: var(--yesil); background: transparent; border: 2px solid var(--yesil); }
+.dugme-link.ikincil:hover { background: var(--yesil-acik); }
+
+/* --- Sohbet ekranı: baloncuklar (kendi mesajın sağda) --- */
+.sohbet-ust { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.sohbet-ust h1 a { color: var(--koyu); text-decoration: none; }
+.uye-listesi { margin: 8px 0; }
+.uye-listesi summary { cursor: pointer; color: var(--vurgu); font-weight: 600; }
+.mesaj-listesi { list-style: none; padding: 0; margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
+.mesaj {
+  max-width: 80%;
+  align-self: flex-start;
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 14px 14px 14px 4px;
+  padding: 8px 12px;
+}
+.mesaj.benim {
+  align-self: flex-end;
+  background: var(--vurgu-acik);
+  border-color: var(--vurgu-acik);
+  border-radius: 14px 14px 4px 14px;
+}
+.mesaj.silindi .mesaj-metni { font-style: italic; color: var(--gri); }
+.mesaj-ust { font-size: 13px; color: var(--gri); }
+.mesaj-ust a { color: var(--vurgu); font-weight: 600; text-decoration: none; }
+.mesaj-metni { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mesaj-sil { display: inline; }
+.mesaj-sil button { font-size: 12px; padding: 0; }
+.mesaj-formu { display: flex; gap: 8px; align-items: flex-end; position: sticky; bottom: 0;
+               background: var(--zemin); padding: 8px 0; }
+.mesaj-formu textarea { flex: 1; margin: 0; }
+.mesaj-formu button { margin: 0; }
+
+/* --- Herkese görünen profil --- */
+.profil-ust { display: flex; gap: 14px; align-items: center; }
+.profil-ust h1 { margin: 0; }
+.profil-harfi {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--vurgu); color: var(--dugme-yazi); font-size: 26px; font-weight: 700;
+}
+.hakkimda-metni { white-space: pre-wrap; margin: 14px 0; }
+.profil-dugmeleri { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }

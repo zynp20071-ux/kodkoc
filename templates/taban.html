@@ -47,6 +47,8 @@
         <!-- Görülmemiş öğretmen duyurusu sayısı -->
         <span class="menu-rozeti" title="{{ g.yeni_duyuru }} yeni duyuru">{{ g.yeni_duyuru }}</span>{% endif %}</a>
       {% endif %}
+      <a href="{{ url_for('mesajlar') }}">Mesajlar{% if g.yeni_mesaj %}
+        <span class="menu-rozeti" title="{{ g.yeni_mesaj }} okunmamış mesaj">{{ g.yeni_mesaj }}</span>{% endif %}</a>
       <!-- Çıkış bir POST formu: başka bir site, bir bağlantıyla kullanıcıyı habersizce çıkaramasın -->
       <form method="post" action="{{ url_for('cikis') }}" class="cikis-formu">
         <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">

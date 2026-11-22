@@ -34,8 +34,8 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 
 import markdown                      # Yapay zekânın cevabındaki ** ve ### işaretlerini HTML'e çevirir
-from flask import (Flask, abort, flash, g, make_response, render_template, request, redirect,
-                   send_file, session, url_for)
+from flask import (Flask, abort, flash, g, jsonify, make_response, render_template, request,
+                   redirect, send_file, session, url_for)
 from dotenv import load_dotenv, set_key
 from google import genai
 
@@ -208,6 +208,9 @@ def kullaniciyi_yukle():
     # Öğrencinin henüz görmediği öğretmen yorumu sayısı (menüdeki rozet için)
     g.okunmamis = 0
     g.yeni_duyuru = 0             # Görülmemiş sınıf duyurusu sayısı ("Sınıfım" yanındaki rozet)
+    g.yeni_mesaj = 0              # Okunmamış mesaj sayısı ("Mesajlar" yanındaki rozet)
+    if g.kullanici and request.endpoint != "static":
+        g.yeni_mesaj = veritabani.okunmamis_mesaj_sayisi(kullanici_id)
     if g.kullanici and g.kullanici["rol"] == "ogrenci":
         g.okunmamis = veritabani.okunmamis_bildirim_sayisi(kullanici_id)   # Yorum + değerlendirme
         g.yeni_duyuru = veritabani.okunmamis_duyuru_sayisi(kullanici_id)
@@ -1301,7 +1304,7 @@ def profil():
                            simdiki_seri=simdiki_seri, en_uzun_seri=en_uzun_seri,
                            bugun_calisti=bugun in gunler,
                            takvim=takvim_olustur(etkinlik, bugun),
-                           en_kisa_sifre=EN_KISA_SIFRE,
+                           en_kisa_sifre=EN_KISA_SIFRE, en_uzun_hakkimda=EN_UZUN_HAKKIMDA,
                            yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI)
 
 
@@ -2096,6 +2099,223 @@ def yorum_sil(yorum_id):
     flash("Yorum silindi.", "bilgi")
     return redirect(url_for("ogrenci_yol_haritasi", ogrenci_id=ogrenci_id,
                             harita_id=harita_id) + f"#adim-{adim_id}")
+
+
+# ---------------------------------------------------------------------------
+# Profiller ve mesajlaşma (sınıf sohbeti + özel mesaj)
+# ---------------------------------------------------------------------------
+#
+# Yeni mesajlar sayfayı yenilemeden nasıl geliyor?
+#   Sohbet sayfasındaki küçük betik birkaç saniyede bir /sohbet/yeni adresine sorar:
+#   "şu id'den sonra yeni mesaj var mı?" Sunucu JSON (JavaScript'in okuyabildiği veri) döndürür,
+#   betik yeni mesajları listeye ekler. Buna "polling" (yoklama) denir. Daha gelişmiş yolu
+#   WebSocket (sunucunun kendisinin haber vermesi) ama bu ölçekte yoklama yeterli ve basit.
+
+EN_UZUN_MESAJ = 1000
+EN_FAZLA_MESAJ_DAKIKA = 20       # Bir dakikada en fazla kaç mesaj (sohbeti boğmayı önler)
+EN_UZUN_HAKKIMDA = 300
+YOKLAMA_SANIYESI = 5             # Sohbet sayfası kaç saniyede bir yeni mesaj sorar
+
+
+def mesaj_atabilir_mi(gonderen_id, alici_id):
+    return any(k["id"] == alici_id for k in veritabani.mesaj_atabilecegi_kisiler(gonderen_id))
+
+
+def mesaj_metnini_oku():
+    """Formdaki mesajı kontrol eder; uygunsa metni, değilse (mesaj gösterip) None döndürür."""
+    metin = request.form.get("metin", "").strip()
+    if not metin:
+        return None
+    if len(metin) > EN_UZUN_MESAJ:
+        flash(f"Mesaj en fazla {EN_UZUN_MESAJ} karakter olabilir.", "hata")
+        return None
+    if veritabani.son_dakika_mesaj_sayisi(aktif_id()) >= EN_FAZLA_MESAJ_DAKIKA:
+        flash("Çok hızlı mesaj gönderiyorsun; biraz bekleyip tekrar dene.", "hata")
+        return None
+    return metin
+
+
+def mesaj_sozlugu(m, sinif=None):
+    """Bir mesaj satırını şablonun ve JSON'un kullanacağı sözlüğe çevirir."""
+    silebilir = (m["gonderen_id"] == aktif_id()
+                 or (sinif is not None and sinif["ogretmen_id"] == aktif_id()))
+    return {
+        "id": m["id"],
+        "gonderen": m["gonderen_adi"],
+        "ogretmen": m["gonderen_rol"] == "ogretmen",
+        "profil": url_for("profil_goster", kullanici_id=m["gonderen_id"]),
+        "metin": "" if m["silindi"] else m["metin"],
+        "silindi": bool(m["silindi"]),
+        "zaman": tarih_bicimle(m["zaman"]),
+        "benim": m["gonderen_id"] == aktif_id(),
+        "silebilir": silebilir and not m["silindi"],
+    }
+
+
+@app.route("/mesajlar", methods=["GET"])
+@giris_gerekli
+def mesajlar():
+    """GET: Sınıf sohbetleri, özel sohbetler ve yeni sohbet başlatılabilecek kişiler."""
+    siniflar, kisiler = veritabani.sohbet_listesi(aktif_id())
+    konusulanlar = {k["diger_id"] for k in kisiler}
+    yeni_kisiler = [k for k in veritabani.mesaj_atabilecegi_kisiler(aktif_id()) if k["id"] not in konusulanlar]
+    return render_template("mesajlar.html", siniflar=siniflar, kisiler=kisiler, yeni_kisiler=yeni_kisiler)
+
+
+@app.route("/sinif/<int:sinif_id>/sohbet", methods=["GET", "POST"])
+@giris_gerekli
+def sinif_sohbeti(sinif_id):
+    """GET: Sınıfın grup sohbeti. POST: Sohbete mesaj yazar. Sadece sınıfın öğretmeni ve üyeleri."""
+    sinif = veritabani.sinifta_mi(aktif_id(), sinif_id)
+    if sinif is None:
+        abort(404)
+    ogretmen_mi = sinif["ogretmen_id"] == aktif_id()
+    yazabilir = ogretmen_mi or not sinif["sohbet_kilitli"]
+
+    if request.method == "POST":
+        if not yazabilir:
+            flash("Bu sohbete şu an sadece öğretmen yazabiliyor.", "hata")
+        else:
+            metin = mesaj_metnini_oku()
+            if metin:
+                veritabani.mesaj_ekle(aktif_id(), metin, sinif_id=sinif_id)
+        return redirect(url_for("sinif_sohbeti", sinif_id=sinif_id) + "#yaz")
+
+    mesaj_listesi = [mesaj_sozlugu(m, sinif) for m in veritabani.sinif_mesajlari(sinif_id)]
+    son_id = mesaj_listesi[-1]["id"] if mesaj_listesi else 0
+    if son_id:
+        veritabani.okundu_yap(aktif_id(), son_id, sinif_id=sinif_id)
+    return render_template("sohbet.html", baslik=sinif["ad"], sinif=sinif, mesaj_listesi=mesaj_listesi,
+                           son_id=son_id, yazabilir=yazabilir, ogretmen_mi=ogretmen_mi,
+                           uyeler=veritabani.sinif_uyeleri_listesi(sinif_id),
+                           gonder_adresi=url_for("sinif_sohbeti", sinif_id=sinif_id),
+                           yoklama_adresi=url_for("sohbet_yeni", sinif=sinif_id),
+                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI)
+
+
+@app.route("/mesaj/<int:kisi_id>", methods=["GET", "POST"])
+@giris_gerekli
+def ozel_sohbet(kisi_id):
+    """
+    GET: Bir kişiyle özel sohbet. POST: O kişiye mesaj gönderir.
+    Yazmak için ortak bir sınıf gerekir (mesaj_atabilir_mi). Artık ortak sınıf yoksa
+    (ör. öğrenci sınıftan ayrıldı) eski mesajlar okunabilir ama yenisi yazılamaz.
+    """
+    if kisi_id == aktif_id():
+        abort(404)
+    kisi = veritabani.kullanici_getir(kisi_id)
+    if kisi is None:
+        abort(404)
+    yazabilir = mesaj_atabilir_mi(aktif_id(), kisi_id)
+    mesaj_satirlari = veritabani.ozel_mesajlar(aktif_id(), kisi_id)
+    if not yazabilir and not mesaj_satirlari:
+        abort(404)                         # Tanımadığı birine sohbet açamaz (var olup olmadığı da sızmaz)
+
+    if request.method == "POST":
+        if not yazabilir:
+            flash("Bu kişiyle artık ortak bir sınıfın yok ya da öğretmen özel mesajı kapattı.", "hata")
+        else:
+            metin = mesaj_metnini_oku()
+            if metin:
+                veritabani.mesaj_ekle(aktif_id(), metin, alici_id=kisi_id)
+        return redirect(url_for("ozel_sohbet", kisi_id=kisi_id) + "#yaz")
+
+    mesaj_listesi = [mesaj_sozlugu(m) for m in mesaj_satirlari]
+    son_id = mesaj_listesi[-1]["id"] if mesaj_listesi else 0
+    if son_id:
+        veritabani.okundu_yap(aktif_id(), son_id, diger_id=kisi_id)
+    return render_template("sohbet.html", baslik=kisi["kullanici_adi"], kisi=kisi, mesaj_listesi=mesaj_listesi,
+                           son_id=son_id, yazabilir=yazabilir,
+                           gonder_adresi=url_for("ozel_sohbet", kisi_id=kisi_id),
+                           yoklama_adresi=url_for("sohbet_yeni", kisi=kisi_id),
+                           en_uzun=EN_UZUN_MESAJ, yoklama=YOKLAMA_SANIYESI)
+
+
+@app.route("/sohbet/yeni", methods=["GET"])
+@giris_gerekli
+def sohbet_yeni():
+    """
+    GET (JSON): Sohbet sayfasındaki betiğin yoklaması. ?sinif=3&sonra=120 ya da ?kisi=7&sonra=120
+    "sonra" id'sinden sonraki mesajları döndürür ve onları okundu sayar.
+    """
+    sonra = request.args.get("sonra", 0, type=int)
+    sinif_id = request.args.get("sinif", type=int)
+    kisi_id = request.args.get("kisi", type=int)
+    if sinif_id:
+        sinif = veritabani.sinifta_mi(aktif_id(), sinif_id)
+        if sinif is None:
+            abort(404)
+        yeniler = [mesaj_sozlugu(m, sinif) for m in veritabani.sinif_mesajlari(sinif_id, sonra)]
+        if yeniler:
+            veritabani.okundu_yap(aktif_id(), yeniler[-1]["id"], sinif_id=sinif_id)
+    elif kisi_id:
+        yeniler = [mesaj_sozlugu(m) for m in veritabani.ozel_mesajlar(aktif_id(), kisi_id, sonra)]
+        if yeniler:
+            veritabani.okundu_yap(aktif_id(), yeniler[-1]["id"], diger_id=kisi_id)
+    else:
+        abort(404)
+    # Silebileceği mesajlar için sil düğmesi betikte yok (sayfa yenilenince görünür)
+    return jsonify({"mesajlar": yeniler})
+
+
+@app.route("/mesaj/<int:mesaj_id>/sil", methods=["POST"])
+@giris_gerekli
+def mesaj_sil(mesaj_id):
+    """POST: Mesajı siler. Kendi mesajını herkes; sınıf sohbetindeki her mesajı o sınıfın öğretmeni."""
+    m = veritabani.mesaj_getir(mesaj_id)
+    if m is None or not (m["gonderen_id"] == aktif_id()
+                         or (m["sinif_id"] and m["ogretmen_id"] == aktif_id())):
+        abort(404)
+    veritabani.mesaj_sil(mesaj_id)
+    flash("Mesaj silindi.", "bilgi")
+    if m["sinif_id"]:
+        return redirect(url_for("sinif_sohbeti", sinif_id=m["sinif_id"]))
+    diger = m["alici_id"] if m["gonderen_id"] == aktif_id() else m["gonderen_id"]
+    return redirect(url_for("ozel_sohbet", kisi_id=diger))
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/sohbet-ayar", methods=["POST"])
+@ogretmen_gerekli
+def sohbet_ayari(sinif_id):
+    """POST: Öğretmen sınıf sohbetini kilitler/açar ve öğrenciler arası özel mesajı açar/kapatır."""
+    if veritabani.sinif_getir(sinif_id, aktif_id()) is None:
+        abort(404)
+    veritabani.sohbet_ayarla(sinif_id, request.form.get("kilitli") == "1",
+                             request.form.get("ozel_mesaj") == "1")
+    flash("Sohbet ayarları kaydedildi.", "bilgi")
+    return redirect(url_for("sinif_sohbeti", sinif_id=sinif_id))
+
+
+@app.route("/kullanici/<int:kullanici_id>", methods=["GET"])
+@giris_gerekli
+def profil_goster(kullanici_id):
+    """
+    GET: Bir kullanıcının profili: kendini tanıttığı yazı, rozetleri, ortak sınıflar.
+    Sadece aynı sınıfta olanlar görebilir (sınıf dışındaki biri öğrencinin profilini göremez).
+    """
+    kisi = veritabani.hesap_bilgileri(kullanici_id)
+    ortak = veritabani.ortak_siniflar(aktif_id(), kullanici_id)
+    if kisi is None or (kullanici_id != aktif_id() and not ortak):
+        abort(404)
+    rozetler = [r for r in rozetleri_hesapla(kullanici_id) if r["kazanildi"]] if kisi["rol"] == "ogrenci" else []
+    return render_template("kullanici.html", kisi=kisi, kisi_id=kullanici_id, ortak=ortak, rozetler=rozetler,
+                           kendisi=kullanici_id == aktif_id(),
+                           mesaj_atabilir=kullanici_id != aktif_id() and mesaj_atabilir_mi(aktif_id(), kullanici_id),
+                           ogrencim=(g.kullanici["rol"] == "ogretmen"
+                                     and veritabani.ogretmen_gorebilir_mi(aktif_id(), kullanici_id)))
+
+
+@app.route("/profil/hakkimda", methods=["POST"])
+@giris_gerekli
+def hakkimda_kaydet():
+    """POST: Profildeki "Hakkımda" yazısını kaydeder (boş bırakılırsa silinir)."""
+    metin = request.form.get("hakkimda", "").strip()
+    if len(metin) > EN_UZUN_HAKKIMDA:
+        flash(f"Hakkımda yazısı en fazla {EN_UZUN_HAKKIMDA} karakter olabilir.", "hata")
+    else:
+        veritabani.hakkimda_kaydet(aktif_id(), metin)
+        flash("Profilin güncellendi.", "bilgi")
+    return redirect(url_for("profil") + "#hakkimda")
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,54 @@
+{% extends "taban.html" %}
+{# Kullanıcı profili: aynı sınıftakilerin görebildiği sayfa (9. hafta) #}
+
+{% block baslik %}{{ kisi.kullanici_adi }} · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart profil-karti">
+      <div class="profil-ust">
+        <span class="profil-harfi" aria-hidden="true">{{ kisi.kullanici_adi[:1] | upper }}</span>
+        <div>
+          <h1>{{ kisi.kullanici_adi }}</h1>
+          <span class="gecmis-durum">{{ 'Öğretmen' if kisi.rol == 'ogretmen' else 'Öğrenci' }} ·
+            {{ kisi.olusturma_zamani[:10] | gun }} tarihinden beri KodKoç'ta</span>
+        </div>
+      </div>
+
+      {% if kisi.hakkimda %}
+      <p class="hakkimda-metni">{{ kisi.hakkimda }}</p>
+      {% elif kendisi %}
+      <p class="ipucu-yazi">Kendini tanıtan kısa bir yazı ekle: <a href="{{ url_for('profil') }}#hakkimda">Profilim →</a></p>
+      {% endif %}
+
+      <div class="profil-dugmeleri">
+        {% if mesaj_atabilir %}<a class="dugme-link" href="{{ url_for('ozel_sohbet', kisi_id=kisi_id) }}">Mesaj gönder</a>{% endif %}
+        {% if ogrencim %}<a class="dugme-link ikincil" href="{{ url_for('ogrenci_detay', ogrenci_id=kisi_id) }}">İlerlemesini gör</a>{% endif %}
+        {% if kendisi %}<a class="dugme-link ikincil" href="{{ url_for('profil') }}#hakkimda">Profilimi düzenle</a>{% endif %}
+      </div>
+    </section>
+
+    {% if kisi.rol == 'ogrenci' %}
+    <div class="ozet">
+      <div><strong>{{ kisi.harita_sayisi }}</strong><span>yol haritası</span></div>
+      <div><strong>{{ kisi.biten_adim }}</strong><span>adım tamamladı</span></div>
+      <div><strong>{{ rozetler | length }}</strong><span>rozet</span></div>
+    </div>
+    {% if rozetler %}
+    <ul class="rozet-listesi">
+      {% for r in rozetler %}
+      <li class="rozet kazanildi"><span class="rozet-isareti" aria-hidden="true">★</span>
+        <span class="rozet-adi">{{ r.ad }}</span><span class="rozet-aciklama">{{ r.aciklama }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+
+    {% if ortak and not kendisi %}
+    <h2 class="ara-baslik">Ortak sınıflarınız</h2>
+    <ul class="kisi-listesi">
+      {% for s in ortak %}
+      <li><a href="{{ url_for('sinif_sohbeti', sinif_id=s.id) }}">{{ s.ad }}</a> <span class="gecmis-durum">· sınıf sohbeti</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+{% endblock %}

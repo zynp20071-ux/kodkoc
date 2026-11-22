@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi. 340 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi, kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma. 356 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -386,8 +386,10 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Yeni rozetler ve rozet bildirimi | `app.py` → `ROZETLER`, `rozetleri_hesapla()`, `yeni_rozetleri_bildir()`; `veritabani.py` → `rozet_verileri()` |
 | Notlarım | `app.py` → `notlarim()`, `notlarimi_indir()`; `veritabani.py` → `tum_notlar()`; `templates/notlarim.html` |
 | Demo verisi | `demo_veri.py` (`olustur` / `sil`) |
+| Profiller | `app.py` → `profil_goster()`, `hakkimda_kaydet()`; `templates/kullanici.html` |
+| Sınıf sohbeti ve özel mesaj | `app.py` → `mesajlar()`, `sinif_sohbeti()`, `ozel_sohbet()`, `sohbet_yeni()`, `mesaj_sil()`, `sohbet_ayari()`; `veritabani.py` 25. bölüm; `templates/mesajlar.html`, `templates/sohbet.html` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py`, `tests/test_mesajlasma.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -487,6 +489,18 @@ Hâlâ saklamıyorum, her seferinde hesaplanıyor. Adım bitirme, not yazma ve �
 
 **Demo verisini nasıl hazırladın?**
 `demo_veri.py` yapay zekâ kullanmadan bir öğretmen, bir sınıf ve üç farklı durumda öğrenci oluşturuyor: neredeyse bitiren, takılan (3 ipucu, geçmiş hedef, öğretmene soru) ve hiç başlamayan. Tarihleri geçmişe alıyor ki seri, takvim ve "son 7 gün" sayıları gerçekçi görünsün. Demo hesaplar zaten varsa ikinci kez kurmuyor, kısa şifre kabul etmiyor; `sil` komutu hesapları `hesap_sil()` ile (her şeyleriyle) siliyor ve gerçek hesaplara dokunmuyor (testi var).
+
+**Mesajlaşmayı nasıl yaptın? Mesajlar anında nasıl geliyor?**
+İki yeni tablo var: `mesajlar` (sınıf mesajında `sinif_id`, özel mesajda `alici_id` dolu) ve `sohbet_okuma` (kim hangi sohbeti hangi mesaja kadar okudu). Sohbet sayfasındaki küçük betik 5 saniyede bir `/sohbet/yeni?sinif=3&sonra=120` adresine "120'den sonra yeni mesaj var mı?" diye soruyor; sunucu JSON döndürüyor, betik yeni mesajları listeye ekliyor. Buna **yoklama (polling)** deniyor. Daha gelişmiş yol WebSocket (sunucunun kendisinin haber vermesi), ama bir sınıf için yoklama yeterli ve çok daha basit. Sekme arkadaysa betik sormuyor (sunucuyu boşuna yormasın).
+
+**Kim kime yazabilir? Öğrenciler tanımadıkları birine mesaj atabilir mi?**
+Hayır. Her şey **sınıf** üzerinden: aynı sınıftakiler birbirinin profilini görür; öğretmen ile kendi öğrencisi her zaman yazışabilir; iki öğrenci ancak ortak bir sınıfları varsa ve öğretmen o sınıfta özel mesajı kapatmadıysa yazışabilir. Öğretmen sınıf sohbetini "sadece öğretmen yazar" yapabilir ve sınıf sohbetindeki her mesajı silebilir; ama öğrencilerin kendi aralarındaki özel mesajları göremez ve silemez. Sınıftan ayrılan öğrenci sınıf sohbetini artık açamaz, eski özel mesajlarını okuyabilir ama yenisini yazamaz. Bir dakikada en fazla 20 mesaj, mesaj başına 1000 karakter. Hesap silinince bütün mesajları da siliniyor. Hepsinin testi var.
+
+**Okunmamış mesaj sayısı nasıl hesaplanıyor?**
+`sohbet_okuma` tablosunda her kişi-sohbet için "son okunan mesaj id'si" duruyor. Okunmamış = başkasının yazdığı, silinmemiş ve id'si son okunandan büyük mesaj. Sohbet açılınca (ya da yoklama yeni mesaj getirince) son okunan güncelleniyor. Bunu **UPSERT** ile yapıyorum: `INSERT ... ON CONFLICT (...) DO UPDATE` (satır yoksa ekle, varsa güncelle); bu yazım hem SQLite'ta hem PostgreSQL'de aynı.
+
+**Mesajda biri `<script>` yazarsa ne olur?**
+Hiçbir şey; düz yazı olarak görünür. Sayfada Jinja2 her şeyi otomatik kaçışlıyor (`&lt;script&gt;`). Yoklamayla gelen mesajları betik `innerHTML` ile değil `textContent` ile ekliyor; böylece metin asla kod olarak çalışmıyor (XSS koruması). Testi var.
 
 **Haftalık özette neden sınıf sıralaması yok?**
 Bilerek. Öğrenci kendini sadece **geçen haftaki kendisiyle** karşılaştırıyor; başkalarıyla kıyaslamak yeni başlayanın motivasyonunu kırabilir. Hafta pazartesi başlıyor: `gun - timedelta(days=gun.weekday())`.

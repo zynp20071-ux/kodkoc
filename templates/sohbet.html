@@ -1,0 +1,144 @@
+{% extends "taban.html" %}
+{# Sohbet ekranı: hem sınıf sohbeti (sinif) hem özel sohbet (kisi) bu şablonu kullanır (9. hafta).
+   Yeni mesajlar sayfanın altındaki betikle birkaç saniyede bir sorulur (yoklama). #}
+
+{% block baslik %}{{ baslik }} · Mesajlar · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('mesajlar') }}" class="geri-baglanti">← Mesajlar</a></p>
+    <div class="sohbet-ust">
+      <h1>{% if kisi %}<a href="{{ url_for('profil_goster', kullanici_id=kisi.id) }}">{{ baslik }}</a>{% else %}{{ baslik }}{% endif %}</h1>
+      <span class="gecmis-durum">{% if sinif %}Sınıf sohbeti · {{ uyeler | length }} kişi{% else %}Özel sohbet{% endif %}</span>
+    </div>
+
+    {% if sinif %}
+    <details class="uye-listesi">
+      <summary>Üyeler</summary>
+      <ul class="kisi-listesi">
+        {% for u in uyeler %}
+        <li><a href="{{ url_for('profil_goster', kullanici_id=u.id) }}">{{ u.kullanici_adi }}</a>
+          {% if u.rol == 'ogretmen' %}<span class="ogretmen-etiketi">Öğretmen</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% if ogretmen_mi %}
+    <!-- Öğretmenin sohbet ayarları -->
+    <details class="uye-listesi">
+      <summary>Sohbet ayarları</summary>
+      <form method="post" action="{{ url_for('sohbet_ayari', sinif_id=sinif.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label class="onay-kutusu"><input type="checkbox" name="kilitli" value="1" {% if sinif.sohbet_kilitli %}checked{% endif %}>
+          Sınıf sohbetine sadece ben yazayım (duyuru kanalı gibi)</label>
+        <label class="onay-kutusu"><input type="checkbox" name="ozel_mesaj" value="1" {% if sinif.ozel_mesaj %}checked{% endif %}>
+          Öğrenciler birbirine özel mesaj atabilsin</label>
+        <button type="submit" class="ikincil">Kaydet</button>
+      </form>
+    </details>
+    {% endif %}
+    {% endif %}
+
+    <ol class="mesaj-listesi" id="mesajlar" data-son="{{ son_id }}" data-adres="{{ yoklama_adresi }}" data-saniye="{{ yoklama }}">
+      {% for m in mesaj_listesi %}
+      <li class="mesaj {% if m.benim %}benim{% endif %} {% if m.silindi %}silindi{% endif %}" id="mesaj-{{ m.id }}">
+        <span class="mesaj-ust">
+          <a href="{{ m.profil }}">{{ m.gonderen }}</a>{% if m.ogretmen %} <span class="ogretmen-etiketi">Öğretmen</span>{% endif %}
+          · {{ m.zaman }}
+        </span>
+        <p class="mesaj-metni">{{ 'Bu mesaj silindi.' if m.silindi else m.metin }}</p>
+        {% if m.silebilir %}
+        <form method="post" action="{{ url_for('mesaj_sil', mesaj_id=m.id) }}" class="mesaj-sil"
+              onsubmit="return confirm('Bu mesaj silinsin mi?');">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <button type="submit" class="isaret">Sil</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="ipucu-yazi bos-sohbet" id="bos-sohbet" {% if mesaj_listesi %}hidden{% endif %}>Henüz mesaj yok. İlk mesajı sen yaz!</p>
+
+    {% if yazabilir %}
+    <form method="post" action="{{ gonder_adresi }}" class="mesaj-formu" id="yaz">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <label for="metin" class="gizli">Mesajın</label>
+      <textarea id="metin" name="metin" rows="2" maxlength="{{ en_uzun }}" required
+                placeholder="Mesajını yaz… (Enter: gönder, Shift+Enter: yeni satır)"></textarea>
+      <button type="submit">Gönder</button>
+    </form>
+    <p class="ipucu-yazi">Saygılı ol; öğretmenin sınıf sohbetindeki mesajları silebilir.</p>
+    {% elif sinif %}
+    <p class="bilgi-notu" id="yaz">Öğretmenin bu sohbeti duyuru kanalı yaptı; şu an sadece o yazabiliyor.</p>
+    {% else %}
+    <p class="bilgi-notu" id="yaz">Bu kişiyle artık ortak bir sınıfın yok ya da öğretmen öğrenciler arası özel mesajı kapattı. Eski mesajları okuyabilirsin.</p>
+    {% endif %}
+{% endblock %}
+
+{% block betik %}
+  <script>
+    (function () {
+      var liste = document.getElementById("mesajlar");
+      var bos = document.getElementById("bos-sohbet");
+      var saniye = parseInt(liste.dataset.saniye, 10) * 1000;
+
+      // Sayfa açılınca en yeni mesaja kay
+      window.scrollTo(0, document.body.scrollHeight);
+
+      // Yeni mesajı listeye ekle. textContent kullanıyoruz (innerHTML değil): mesajdaki
+      // <script> gibi yazılar KOD olarak çalışmaz, düz yazı olarak görünür (XSS koruması).
+      function ekle(m) {
+        if (document.getElementById("mesaj-" + m.id)) return;     // Zaten var
+        var li = document.createElement("li");
+        li.className = "mesaj" + (m.benim ? " benim" : "") + (m.silindi ? " silindi" : "");
+        li.id = "mesaj-" + m.id;
+        var ust = document.createElement("span");
+        ust.className = "mesaj-ust";
+        var ad = document.createElement("a");
+        ad.href = m.profil;
+        ad.textContent = m.gonderen;
+        ust.appendChild(ad);
+        if (m.ogretmen) {
+          var etiket = document.createElement("span");
+          etiket.className = "ogretmen-etiketi";
+          etiket.textContent = "Öğretmen";
+          ust.appendChild(document.createTextNode(" "));
+          ust.appendChild(etiket);
+        }
+        ust.appendChild(document.createTextNode(" · " + m.zaman));
+        var metin = document.createElement("p");
+        metin.className = "mesaj-metni";
+        metin.textContent = m.silindi ? "Bu mesaj silindi." : m.metin;
+        li.appendChild(ust);
+        li.appendChild(metin);
+        liste.appendChild(li);
+        bos.hidden = true;
+      }
+
+      function yokla() {
+        if (document.visibilityState !== "visible") return;        // Sekme arkadaysa sorma
+        fetch(liste.dataset.adres + "&sonra=" + liste.dataset.son, {credentials: "same-origin"})
+          .then(function (c) { return c.ok ? c.json() : {mesajlar: []}; })
+          .then(function (veri) {
+            var enAltta = window.innerHeight + window.scrollY >= document.body.scrollHeight - 80;
+            veri.mesajlar.forEach(function (m) {
+              ekle(m);
+              liste.dataset.son = m.id;
+            });
+            if (veri.mesajlar.length && enAltta) window.scrollTo(0, document.body.scrollHeight);
+          })
+          .catch(function () {});                                    // İnternet kesildiyse sessizce geç
+      }
+      setInterval(yokla, saniye);
+
+      // Enter: gönder, Shift+Enter: yeni satır
+      var kutu = document.getElementById("metin");
+      if (kutu) {
+        kutu.addEventListener("keydown", function (o) {
+          if (o.key === "Enter" && !o.shiftKey && kutu.value.trim()) {
+            o.preventDefault();
+            kutu.form.submit();
+          }
+        });
+      }
+    })();
+  </script>
+{% endblock %}

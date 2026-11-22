@@ -106,6 +106,8 @@ Yazılıma yeni başlayanlara **kodu yazmadan** yol gösteren yapay zekâ koçu.
 | `templates/_rozetler.html` | Rozet listesi (Geçmiş ve öğretmenin öğrenci sayfasına `include` ile eklenir) |
 | `templates/profil.html` | Profil: çalışma serisi, etkinlik takvimi, şifre değiştirme |
 | `test_calistir.bat`, `pytest.ini` | Testleri tek tıkla çalıştırma |
+| `templates/mesajlar.html`, `templates/sohbet.html` | Sohbet listesi ve sohbet ekranı (sınıf sohbeti + özel mesaj) |
+| `templates/kullanici.html` | Aynı sınıftakilerin görebildiği kullanıcı profili |
 | `templates/notlarim.html` | Öğrenci: bütün adım notları, arama ve .md olarak indirme |
 | `demo_veri.py` | Sunum için örnek öğretmen, sınıf ve öğrenciler (`olustur` / `sil`) |
 | `SUNUM_NOTLARI.md` | Sunum için demo akışı, özelliklerin kodda yeri, olası sorular |
@@ -186,3 +188,5 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Öğrencinin bildiklerine göre koç, sınıfla paylaşılan sorular
 - [x] 9. hafta: "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu
 - [x] 9. hafta: Üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi
+- [x] 9. hafta: Kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma
+- [ ] Grup projeleri, mesaj bildirme/engelleme, sesli-görüntülü görüşme

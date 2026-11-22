@@ -1,0 +1,63 @@
+{% extends "taban.html" %}
+{# Mesajlar: sınıf sohbetleri (grup) ve özel sohbetler, WhatsApp'taki sohbet listesi gibi (9. hafta) #}
+
+{% block baslik %}Mesajlar · KodKoç{% endblock %}
+
+{% block icerik %}
+    <h1>Mesajlar</h1>
+    <p class="aciklama">Sınıfınla grup halinde ya da sınıfındaki biriyle özel olarak yazış.</p>
+
+    <h2 class="ara-baslik">Sınıf sohbetleri</h2>
+    {% if siniflar %}
+    <ul class="sohbet-listesi">
+      {% for s in siniflar %}
+      <li>
+        <a class="sohbet-ogesi" href="{{ url_for('sinif_sohbeti', sinif_id=s.id) }}">
+          <span class="sohbet-adi">{{ s.ad }}{% if s.sohbet_kilitli %} <span class="gecmis-durum">· sadece öğretmen yazar</span>{% endif %}</span>
+          {% if s.okunmamis %}<span class="menu-rozeti" title="{{ s.okunmamis }} okunmamış mesaj">{{ s.okunmamis }}</span>{% endif %}
+          <span class="sohbet-son">
+            {% if s.son_zaman %}{{ s.son_gonderen }}: {{ 'Bu mesaj silindi' if s.son_silindi else s.son_metin | truncate(70) }} · {{ s.son_zaman | tarih }}
+            {% else %}Henüz mesaj yok. İlk mesajı sen yaz!{% endif %}
+          </span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ipucu-yazi">Henüz bir sınıfın yok.
+      {% if g.kullanici.rol == 'ogretmen' %}<a href="{{ url_for('ogretmen_paneli') }}">Sınıf aç →</a>
+      {% else %}<a href="{{ url_for('sinifim') }}">Öğretmeninin verdiği kodla bir sınıfa katıl →</a>{% endif %}</p>
+    {% endif %}
+
+    <h2 class="ara-baslik">Özel sohbetler</h2>
+    {% if kisiler %}
+    <ul class="sohbet-listesi">
+      {% for k in kisiler %}
+      <li>
+        <a class="sohbet-ogesi" href="{{ url_for('ozel_sohbet', kisi_id=k.diger_id) }}">
+          <span class="sohbet-adi">{{ k.kullanici_adi }}{% if k.rol == 'ogretmen' %} <span class="ogretmen-etiketi">Öğretmen</span>{% endif %}</span>
+          {% if k.okunmamis %}<span class="menu-rozeti" title="{{ k.okunmamis }} okunmamış mesaj">{{ k.okunmamis }}</span>{% endif %}
+          <span class="sohbet-son">{{ 'Sen: ' if k.son_gonderen_id == g.kullanici.id }}{{ 'Bu mesaj silindi' if k.son_silindi else k.son_metin | truncate(70) }} · {{ k.son_zaman | tarih }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ipucu-yazi">Henüz özel bir sohbetin yok.</p>
+    {% endif %}
+
+    {% if yeni_kisiler %}
+    <details class="kart yeni-sohbet">
+      <summary>Yeni sohbet başlat</summary>
+      <ul class="kisi-listesi">
+        {% for k in yeni_kisiler %}
+        <li>
+          <a href="{{ url_for('profil_goster', kullanici_id=k.id) }}">{{ k.kullanici_adi }}</a>
+          {% if k.rol == 'ogretmen' %}<span class="ogretmen-etiketi">Öğretmen</span>{% endif %}
+          <a class="dugme-link kucuk" href="{{ url_for('ozel_sohbet', kisi_id=k.id) }}">Mesaj yaz</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+{% endblock %}

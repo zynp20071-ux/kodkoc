@@ -507,6 +507,43 @@ def hazirla():
         # Öğretmen bu soru-cevabı sınıfla paylaştı mı? (1 = sınıftaki herkes görür, soranın adı gizli)
         sutun_yoksa_ekle(baglanti, "ogretmen_sorulari", "paylasildi", "INTEGER NOT NULL DEFAULT 0")
 
+        # Mesajlaşma: sınıf sohbeti (sinif_id dolu) ya da iki kişi arasında özel mesaj (alici_id dolu).
+        # Bir mesajda ikisinden biri dolu olur. Silinen mesaj satır olarak kalır, metni boşaltılır
+        # ("Bu mesaj silindi" yazsın, sohbetin akışı bozulmasın diye).
+        baglanti.execute("""
+            CREATE TABLE IF NOT EXISTS mesajlar (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                sinif_id    INTEGER REFERENCES siniflar(id),
+                gonderen_id INTEGER NOT NULL REFERENCES kullanicilar(id),
+                alici_id    INTEGER REFERENCES kullanicilar(id),
+                metin       TEXT NOT NULL,
+                zaman       TEXT NOT NULL,
+                silindi     INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        # Kim hangi sohbeti nereye kadar okudu? (okunmamış mesaj sayısı için)
+        # Sınıf sohbeti için diger_id = 0, özel sohbet için sinif_id = 0.
+        # (NULL yerine 0: birincil anahtarın parçası olan sütun boş olamaz.)
+        baglanti.execute("""
+            CREATE TABLE IF NOT EXISTS sohbet_okuma (
+                kullanici_id  INTEGER NOT NULL REFERENCES kullanicilar(id),
+                sinif_id      INTEGER NOT NULL DEFAULT 0,
+                diger_id      INTEGER NOT NULL DEFAULT 0,
+                son_okunan_id INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (kullanici_id, sinif_id, diger_id)
+            )
+        """)
+        # İndeks: kitabın sonundaki dizin gibi; sohbet açılırken bütün tabloyu taramadan bulur
+        baglanti.execute("CREATE INDEX IF NOT EXISTS mesaj_sinif ON mesajlar (sinif_id, id)")
+        baglanti.execute("CREATE INDEX IF NOT EXISTS mesaj_alici ON mesajlar (alici_id, gonderen_id)")
+        # Profil: kullanıcının kendini kısaca tanıttığı yazı
+        sutun_yoksa_ekle(baglanti, "kullanicilar", "hakkimda", "TEXT")
+        # Sınıf sohbet ayarları (öğretmen değiştirir):
+        #   sohbet_kilitli = 1: sınıf sohbetine sadece öğretmen yazabilir (duyuru kanalı gibi)
+        #   ozel_mesaj     = 1: bu sınıftaki öğrenciler birbirine özel mesaj atabilir
+        sutun_yoksa_ekle(baglanti, "siniflar", "sohbet_kilitli", "INTEGER NOT NULL DEFAULT 0")
+        sutun_yoksa_ekle(baglanti, "siniflar", "ozel_mesaj", "INTEGER NOT NULL DEFAULT 1")
+
         if POSTGRES:
             # SQLite'taki COLLATE NOCASE'in yerine: "Ali" ile "ali" aynı ad sayılsın.
             # LOWER(...) üzerine UNIQUE indeks: küçük harfe çevrilmiş halleri aynı olamaz.
@@ -1037,6 +1074,8 @@ def sinif_sil(sinif_id, ogretmen_id):
             return False
         baglanti.execute("DELETE FROM sinif_uyeleri WHERE sinif_id = ?", (sinif_id,))
         baglanti.execute("DELETE FROM duyurular WHERE sinif_id = ?", (sinif_id,))
+        baglanti.execute("DELETE FROM mesajlar WHERE sinif_id = ?", (sinif_id,))        # Sınıf sohbeti
+        baglanti.execute("DELETE FROM sohbet_okuma WHERE sinif_id = ?", (sinif_id,))
         # Sınıf projesi için çıkarılmış yol haritaları öğrencide kalır, sadece sınıf bağı kopar
         baglanti.execute("UPDATE yol_haritalari SET sinif_id = NULL WHERE sinif_id = ?", (sinif_id,))
         baglanti.execute("DELETE FROM siniflar WHERE id = ?", (sinif_id,))
@@ -1727,7 +1766,7 @@ def hesap_bilgileri(kullanici_id):
     baglanti = baglan()
     try:
         return baglanti.execute("""
-            SELECT u.kullanici_adi, u.rol, u.olusturma_zamani,
+            SELECT u.kullanici_adi, u.rol, u.olusturma_zamani, u.hakkimda,
                    (SELECT COUNT(*) FROM yol_haritalari WHERE kullanici_id = :k)        AS harita_sayisi,
                    (SELECT COUNT(*) FROM adimlar a JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
                      WHERE y.kullanici_id = :k AND a.tamamlandi = 1)                    AS biten_adim,
@@ -2029,6 +2068,11 @@ def hesap_sil(kullanici_id, sifre):
                          {"k": kullanici_id})
         siniflari = "SELECT id FROM siniflar WHERE ogretmen_id = :k"
         baglanti.execute(f"DELETE FROM duyurular WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
+        # Mesajlar: öğretmenin sınıflarının sohbetleri ve kullanıcının gönderdiği/aldığı bütün mesajlar
+        baglanti.execute(f"DELETE FROM mesajlar WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
+        baglanti.execute(f"DELETE FROM sohbet_okuma WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM mesajlar WHERE gonderen_id = :k OR alici_id = :k", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM sohbet_okuma WHERE kullanici_id = :k OR diger_id = :k", {"k": kullanici_id})
         baglanti.execute(f"DELETE FROM sinif_uyeleri WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
         baglanti.execute(f"UPDATE yol_haritalari SET sinif_id = NULL WHERE sinif_id IN ({siniflari})",
                          {"k": kullanici_id})
@@ -2463,5 +2507,280 @@ def tum_notlar(kullanici_id, ara=""):
     baglanti = baglan()
     try:
         return baglanti.execute(sorgu, degerler).fetchall()
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 25) PROFİL VE MESAJLAŞMA (sınıf sohbeti + özel mesaj)
+# ---------------------------------------------------------------------------
+#
+# Kim kimi görebilir, kime yazabilir? Hep SINIF üzerinden:
+#   - Aynı sınıftaki herkes (öğretmen + öğrenciler) birbirinin profilini görür.
+#   - Öğretmen ile kendi sınıfındaki öğrenci her zaman özel mesajlaşabilir.
+#   - İki öğrenci, ancak ortak bir sınıfları varsa VE o sınıfta öğretmen özel mesajı
+#     kapatmadıysa (ozel_mesaj = 1) özel mesajlaşabilir.
+
+# Kullanıcının içinde bulunduğu sınıflar: öğretmeni olduğu ya da üye olduğu (UNION tekrarları atar)
+_SINIFLARI = """(SELECT id FROM siniflar WHERE ogretmen_id = :k
+                  UNION SELECT sinif_id FROM sinif_uyeleri WHERE ogrenci_id = :k)"""
+
+
+def hakkimda_kaydet(kullanici_id, metin):
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE kullanicilar SET hakkimda = ? WHERE id = ?", (metin or None, kullanici_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def kullanicinin_siniflari(kullanici_id):
+    """Kullanıcının içinde olduğu bütün sınıflar (öğretmense açtıkları, öğrenciyse katıldıkları)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute(f"""
+            SELECT s.id, s.ad, s.ogretmen_id, s.sohbet_kilitli, s.ozel_mesaj
+            FROM siniflar AS s WHERE s.id IN {_SINIFLARI}
+            ORDER BY s.ad
+        """, {"k": kullanici_id}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def sinifta_mi(kullanici_id, sinif_id):
+    """Bu kullanıcı bu sınıfın öğretmeni ya da üyesi mi? Değilse None, ise sınıf satırı."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute(f"""
+            SELECT s.id, s.ad, s.ogretmen_id, s.sohbet_kilitli, s.ozel_mesaj
+            FROM siniflar AS s WHERE s.id = :s AND s.id IN {_SINIFLARI}
+        """, {"k": kullanici_id, "s": sinif_id}).fetchone()
+    finally:
+        baglanti.close()
+
+
+def ortak_siniflar(a, b):
+    """İki kullanıcının ortak sınıfları (biri öğretmen, öteki üye de olabilir; ikisi de üye de)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute(f"""
+            SELECT s.id, s.ad, s.ogretmen_id, s.ozel_mesaj FROM siniflar AS s
+            WHERE s.id IN {_SINIFLARI.replace(':k', ':a')} AND s.id IN {_SINIFLARI.replace(':k', ':b')}
+            ORDER BY s.ad
+        """, {"a": a, "b": b}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def mesaj_atabilecegi_kisiler(kullanici_id):
+    """
+    Özel mesaj atabileceği kişiler (ada göre sıralı). Üç grubun birleşimi:
+    öğrencilerim (öğretmensem), öğretmenlerim, özel mesajı açık sınıflardaki sınıf arkadaşlarım.
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT k.id, k.kullanici_adi, k.rol FROM kullanicilar AS k
+            WHERE k.id <> :k AND (
+                k.id IN (SELECT u.ogrenci_id FROM sinif_uyeleri u
+                          JOIN siniflar s ON s.id = u.sinif_id WHERE s.ogretmen_id = :k)
+             OR k.id IN (SELECT s.ogretmen_id FROM siniflar s
+                          JOIN sinif_uyeleri u ON u.sinif_id = s.id WHERE u.ogrenci_id = :k)
+             OR k.id IN (SELECT u2.ogrenci_id FROM sinif_uyeleri u1
+                          JOIN sinif_uyeleri u2 ON u2.sinif_id = u1.sinif_id
+                          JOIN siniflar s ON s.id = u1.sinif_id
+                          WHERE u1.ogrenci_id = :k AND s.ozel_mesaj = 1))
+            ORDER BY LOWER(k.kullanici_adi)
+        """, {"k": kullanici_id}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def sinif_uyeleri_listesi(sinif_id):
+    """Sohbet sayfasındaki üye listesi: önce öğretmen, sonra öğrenciler (ada göre)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT k.id, k.kullanici_adi, k.rol FROM kullanicilar k
+             JOIN siniflar s ON s.ogretmen_id = k.id WHERE s.id = :s
+            UNION ALL
+            SELECT k.id, k.kullanici_adi, k.rol FROM kullanicilar k
+             JOIN sinif_uyeleri u ON u.ogrenci_id = k.id WHERE u.sinif_id = :s
+            ORDER BY rol DESC, kullanici_adi
+        """, {"s": sinif_id}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def mesaj_ekle(gonderen_id, metin, sinif_id=None, alici_id=None):
+    """Sınıf sohbetine (sinif_id) ya da bir kişiye (alici_id) mesaj ekler, id'sini döndürür."""
+    zaman = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    baglanti = baglan()
+    try:
+        mesaj_id = baglanti.ekle(
+            "INSERT INTO mesajlar (sinif_id, gonderen_id, alici_id, metin, zaman) VALUES (?, ?, ?, ?, ?)",
+            (sinif_id, gonderen_id, alici_id, metin, zaman))
+        baglanti.commit()
+        return mesaj_id
+    finally:
+        baglanti.close()
+
+
+def son_dakika_mesaj_sayisi(kullanici_id):
+    """Son 60 saniyede gönderilen mesaj sayısı (art arda yüzlerce mesajla sohbeti boğmayı önler)."""
+    sinir = (datetime.now() - timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S")
+    baglanti = baglan()
+    try:
+        return baglanti.execute("SELECT COUNT(*) FROM mesajlar WHERE gonderen_id = ? AND zaman >= ?",
+                                (kullanici_id, sinir)).fetchone()[0]
+    finally:
+        baglanti.close()
+
+
+_MESAJ_SUTUNLARI = """m.id, m.sinif_id, m.gonderen_id, m.alici_id, m.metin, m.zaman, m.silindi,
+                      k.kullanici_adi AS gonderen_adi, k.rol AS gonderen_rol"""
+
+
+def sinif_mesajlari(sinif_id, sonra=0, sinir=100):
+    """Sınıf sohbetinin mesajları (eskiden yeniye). sonra: bu id'den SONRAKİLER (yeni mesaj kontrolü)."""
+    baglanti = baglan()
+    try:
+        # İç sorgu en yeni 'sinir' mesajı alır, dış sorgu onları eskiden yeniye çevirir
+        return baglanti.execute(f"""
+            SELECT * FROM (
+                SELECT {_MESAJ_SUTUNLARI} FROM mesajlar m JOIN kullanicilar k ON k.id = m.gonderen_id
+                WHERE m.sinif_id = ? AND m.id > ? ORDER BY m.id DESC LIMIT ?
+            ) AS son ORDER BY id
+        """, (sinif_id, sonra, sinir)).fetchall()
+    finally:
+        baglanti.close()
+
+
+def ozel_mesajlar(a, b, sonra=0, sinir=100):
+    """İki kişi arasındaki özel mesajlar (eskiden yeniye)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute(f"""
+            SELECT * FROM (
+                SELECT {_MESAJ_SUTUNLARI} FROM mesajlar m JOIN kullanicilar k ON k.id = m.gonderen_id
+                WHERE ((m.gonderen_id = :a AND m.alici_id = :b) OR (m.gonderen_id = :b AND m.alici_id = :a))
+                  AND m.id > :sonra
+                ORDER BY m.id DESC LIMIT :sinir
+            ) AS son ORDER BY id
+        """, {"a": a, "b": b, "sonra": sonra, "sinir": sinir}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def mesaj_getir(mesaj_id):
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""SELECT m.*, s.ogretmen_id FROM mesajlar m
+                                   LEFT JOIN siniflar s ON s.id = m.sinif_id WHERE m.id = ?""",
+                                (mesaj_id,)).fetchone()
+    finally:
+        baglanti.close()
+
+
+def mesaj_sil(mesaj_id):
+    """Mesajı "silindi" yapar ve metnini boşaltır (satır kalır, sohbetin sırası bozulmaz)."""
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE mesajlar SET silindi = 1, metin = '' WHERE id = ?", (mesaj_id,))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def okundu_yap(kullanici_id, son_id, sinif_id=0, diger_id=0):
+    """
+    Sohbeti 'son_id'ye kadar okundu sayar. "UPSERT": satır yoksa ekler, varsa günceller.
+    ON CONFLICT ... DO UPDATE hem SQLite'ta hem PostgreSQL'de aynı yazılıyor.
+    excluded: eklenmeye çalışılan (çakışan) yeni satırın değerleri.
+    """
+    baglanti = baglan()
+    try:
+        baglanti.execute(f"""
+            INSERT INTO sohbet_okuma (kullanici_id, sinif_id, diger_id, son_okunan_id) VALUES (?, ?, ?, ?)
+            ON CONFLICT (kullanici_id, sinif_id, diger_id)
+            DO UPDATE SET son_okunan_id = {BUYUGU}(sohbet_okuma.son_okunan_id, excluded.son_okunan_id)
+        """, (kullanici_id, sinif_id, diger_id, son_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+# Okunmamış mesaj: başkasının yazdığı, silinmemiş ve "son okunan"dan sonra gelen mesaj
+_OKUNMAMIS_SINIF = """(SELECT COUNT(*) FROM mesajlar x
+                        WHERE x.sinif_id = {sinif} AND x.gonderen_id <> :k AND x.silindi = 0
+                          AND x.id > COALESCE((SELECT o.son_okunan_id FROM sohbet_okuma o
+                                WHERE o.kullanici_id = :k AND o.sinif_id = {sinif} AND o.diger_id = 0), 0))"""
+_OKUNMAMIS_KISI = """(SELECT COUNT(*) FROM mesajlar x
+                       WHERE x.alici_id = :k AND x.gonderen_id = {kisi} AND x.silindi = 0
+                         AND x.id > COALESCE((SELECT o.son_okunan_id FROM sohbet_okuma o
+                               WHERE o.kullanici_id = :k AND o.sinif_id = 0 AND o.diger_id = {kisi}), 0))"""
+
+
+def okunmamis_mesaj_sayisi(kullanici_id):
+    """Menüdeki "Mesajlar" rozeti: bütün sınıf sohbetlerindeki ve özel sohbetlerdeki okunmamışlar."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute(f"""
+            SELECT
+              (SELECT COALESCE(SUM({_OKUNMAMIS_SINIF.format(sinif='s.id')}), 0)
+                 FROM siniflar s WHERE s.id IN {_SINIFLARI})
+            + (SELECT COUNT(*) FROM mesajlar x
+                WHERE x.alici_id = :k AND x.silindi = 0
+                  AND x.id > COALESCE((SELECT o.son_okunan_id FROM sohbet_okuma o
+                        WHERE o.kullanici_id = :k AND o.sinif_id = 0 AND o.diger_id = x.gonderen_id), 0))
+        """, {"k": kullanici_id}).fetchone()[0]
+    finally:
+        baglanti.close()
+
+
+def sohbet_listesi(kullanici_id):
+    """
+    "Mesajlar" sayfası için: (sınıf sohbetleri, özel sohbetler).
+    Her birinde son mesaj ve okunmamış sayısı var. Özel sohbetler en yeni mesaja göre sıralı.
+    """
+    baglanti = baglan()
+    try:
+        siniflar = baglanti.execute(f"""
+            SELECT s.id, s.ad, s.sohbet_kilitli,
+                   m.metin AS son_metin, m.zaman AS son_zaman, m.silindi AS son_silindi,
+                   k.kullanici_adi AS son_gonderen,
+                   {_OKUNMAMIS_SINIF.format(sinif='s.id')} AS okunmamis
+            FROM siniflar s
+            LEFT JOIN mesajlar m ON m.id = (SELECT MAX(id) FROM mesajlar WHERE sinif_id = s.id)
+            LEFT JOIN kullanicilar k ON k.id = m.gonderen_id
+            WHERE s.id IN {_SINIFLARI}
+            ORDER BY COALESCE(m.id, 0) DESC, s.ad
+        """, {"k": kullanici_id}).fetchall()
+        # Her özel sohbetin "öteki kişisi" ve son mesajının id'si (CASE: ben gönderdiysem alıcı, değilse gönderen)
+        kisiler = baglanti.execute(f"""
+            SELECT t.diger_id, k.kullanici_adi, k.rol, m.metin AS son_metin, m.zaman AS son_zaman,
+                   m.silindi AS son_silindi, m.gonderen_id AS son_gonderen_id,
+                   {_OKUNMAMIS_KISI.format(kisi='t.diger_id')} AS okunmamis
+            FROM (SELECT diger_id, MAX(id) AS son_id FROM (
+                      SELECT CASE WHEN gonderen_id = :k THEN alici_id ELSE gonderen_id END AS diger_id, id
+                      FROM mesajlar WHERE alici_id IS NOT NULL AND (gonderen_id = :k OR alici_id = :k)
+                  ) AS d GROUP BY diger_id) AS t
+            JOIN mesajlar m ON m.id = t.son_id
+            JOIN kullanicilar k ON k.id = t.diger_id
+            ORDER BY t.son_id DESC
+        """, {"k": kullanici_id}).fetchall()
+        return siniflar, kisiler
+    finally:
+        baglanti.close()
+
+
+def sohbet_ayarla(sinif_id, kilitli, ozel_mesaj):
+    """Öğretmenin sınıf sohbeti ayarları. (Yetki app.py'de kontrol edilir.)"""
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE siniflar SET sohbet_kilitli = ?, ozel_mesaj = ? WHERE id = ?",
+                         (1 if kilitli else 0, 1 if ozel_mesaj else 0, sinif_id))
+        baglanti.commit()
     finally:
         baglanti.close()

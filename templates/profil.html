@@ -52,6 +52,19 @@
     <p class="ipucu-yazi">Bugün kalan yapay zekâ hakkın: <strong>{{ yz_kalan }} / {{ yz_sinir }}</strong>
       (yol haritası, proje fikri, ipucu, kod inceleme ve koça soru aynı haktan düşer; her gün yenilenir).</p>
 
+    <!-- Hakkımda: sınıf arkadaşlarının ve öğretmenin gördüğü profil yazısı -->
+    <section class="kart profil-bolumu" id="hakkimda">
+      <h2 class="ara-baslik">Hakkımda</h2>
+      <p class="ipucu-yazi">Sınıfındakiler <a href="{{ url_for('profil_goster', kullanici_id=g.kullanici.id) }}">profilinde</a> bu yazıyı görür. Örnek: neleri sevdiğin, hangi dilleri öğrendiğin.</p>
+      <form method="post" action="{{ url_for('hakkimda_kaydet') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="hakkimda-metin" class="gizli">Hakkımda</label>
+        <textarea id="hakkimda-metin" name="hakkimda" rows="3" maxlength="{{ en_uzun_hakkimda }}"
+                  placeholder="Örnek: Python öğreniyorum, oyun yapmayı seviyorum.">{{ bilgi.hakkimda or '' }}</textarea>
+        <button type="submit" class="ikincil">Kaydet</button>
+      </form>
+    </section>
+
     <!-- Şifre değiştirme -->
     <section class="kart profil-bolumu" id="sifre">
       <h2 class="ara-baslik">Şifremi değiştir</h2>
