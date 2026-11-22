@@ -111,6 +111,9 @@ Yazılıma yeni başlayanlara **kodu yazmadan** yol gösteren yapay zekâ koçu.
 | `templates/kod_dene.html`, `static/python_isci.js` | Tarayıcıda Python çalıştırma (Pyodide, Web Worker) |
 | `templates/odevler.html`, `templates/odev.html`, `templates/odev_teslimleri.html` | Ödevler, teslim ve puanlama |
 | `templates/grup.html` | Grup projesi: görev panosu |
+| `templates/takvim.html`, `templates/sablonlar.html`, `templates/sablon.html` | Takvim ve öğretmenin proje şablonları |
+| `static/manifest.webmanifest`, `static/sw.js`, `static/ikon-*.png` | Telefona yüklenebilir uygulama (PWA) |
+| `yedek_al.py` | Veritabanı yedeği alma ve geri yükleme |
 | `templates/gizlilik.html` | Hangi verilerin saklandığı, kimin neyi gördüğü |
 | `templates/notlarim.html` | Öğrenci: bütün adım notları, arama ve .md olarak indirme |
 | `demo_veri.py` | Sunum için örnek öğretmen, sınıf ve öğrenciler (`olustur` / `sil`) |
@@ -159,6 +162,9 @@ ziyaretçiye gösterilmez, yol haritaları `.md` dosyasına yazılmaz. Her modda
 Bilgisayardaki verileri sunucuya aktarmak için: `DATABASE_URL` ayarlıyken `python tasima.py kodkoc.db`
 (hedef veritabanı boşsa çalışır, id'ler ve şifreler aynen taşınır).
 Sunum için örnek veri: `python demo_veri.py olustur <şifre>` (silmek için `sil <şifre>`).
+Yedek: `python yedek_al.py` (bütün tablolar `yedekler/` klasörüne JSON olarak; kişisel veri içerir, paylaşma).
+Boş bir veritabanına geri yüklemek: `python yedek_al.py geri yedekler/dosya.json`.
+"Şifremi unuttum" e-postası için `SMTP_SUNUCU`, `SMTP_KULLANICI`, `SMTP_SIFRE`, `SMTP_GONDEREN` ayarlanır (`.env.example`).
 
 **Render + Neon ile kurulum:** Veritabanı Neon'da (neon.tech, ücretsiz PostgreSQL), uygulama Render'da.
 Depodaki `render.yaml` uygulamayı tanımlar: Render'da *New → Blueprint* seçip GitHub deposunu bağlamak
@@ -196,4 +202,6 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Mesaj bildirme ve engelleme, kötü kelime süzgeci, gizlilik sayfası
 - [x] 9. hafta: Tarayıcıda Python çalıştırma (Pyodide)
 - [x] 9. hafta: Mini quiz, ödev teslimi ve puanlama, grup projeleri (görev panosu + grup sohbeti)
-- [ ] Sesli-görüntülü görüşme
+- [x] 9. hafta: Proje şablonları, takvim, katılım takibi
+- [x] 9. hafta: Telefona yüklenebilir uygulama (PWA), tarayıcı bildirimleri, e-postayla şifre sıfırlama, yedek
+- [ ] Sesli-görüntülü görüşme, profil fotoğrafı

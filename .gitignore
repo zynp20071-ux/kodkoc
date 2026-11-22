@@ -16,3 +16,6 @@ kodkoc.db
 # Neon/başka araçların yazdığı yerel ayar dosyaları (veritabanı şifresi içerir)
 .env.local
 .env.*.local
+
+# Veritabanı yedekleri (kişisel veri içerir, GitHub'a yüklenmez)
+yedekler/

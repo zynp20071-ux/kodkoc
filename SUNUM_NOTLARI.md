@@ -343,7 +343,7 @@ Hayır. Sadece öğrenci kendi sayfasını açınca okundu sayılıyor. Bunun da
 | 6 | Terminal sürümü: proje anlatımından yol haritası, `.md` dosyasına kaydetme |
 | 7 | Flask web arayüzü, tasarım, adımlar ayrı kutularda |
 | 8 | Veritabanı, ilerleme, ipucu, not, kullanıcı girişi, öğretmen paneli, GitHub takibi, yorumlar ve bildirim, Excel'e aktarma, kodumu incelet, proje fikri, kaldığın yerden devam, adım düzenleme, rozetler, koça soru sor, profil ve çalışma serisi, sınıf duyuruları, sınıf istatistikleri, yazdır/PDF, koyu tema, CSRF, 183 otomatik test |
-| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi, kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma, mesaj bildirme ve engelleme, kötü kelime süzgeci, gizlilik sayfası, tarayıcıda Python çalıştırma, mini quiz, ödev teslimi ve puanlama, grup projeleri (görev panosu + grup sohbeti). 408 test (PostgreSQL'de de geçiyor) |
+| 9 | Canlıya hazırlık: canlı mod, öğretmen davet kodu, kişi başı ve site geneli yapay zekâ sınırı, şifre deneme sınırı, güvenlik başlıkları, hata sayfası. PostgreSQL desteği (aynı kod iki veritabanıyla), SQLite'tan PostgreSQL'e taşıma betiği, Render kurulum dosyası, sağlık kontrolü, git. Canlıya alma (Render + Neon) ve iki sunucu hatasının düzeltilmesi. Kalan yapay zekâ hakkı, öğretmenin şifre sıfırlaması, sınıfın yapay zekâ kullanımı, hesap silme, adımlara hedef tarih, sınıftan çıkarma, haftalık özet, sınıf projesi, son etkinlikler akışı, öğretmen değerlendirmesi, öğrencinin kendi hedefleri, öğretmen paneli özeti, değerlendirme bildirimi, toplu hedef, öğretmenime sor, sınıf projesinin adım dağılımı, öğrenciye özel koç, sınıfla paylaşılan sorular, "Bugün ne yapayım?" önerisi, yazdırılabilir sınıf raporu, üç yeni rozet ve rozet bildirimi, Notlarım sayfası, sunum için demo verisi, kullanıcı profilleri, sınıf sohbeti (grup) ve özel mesajlaşma, mesaj bildirme ve engelleme, kötü kelime süzgeci, gizlilik sayfası, tarayıcıda Python çalıştırma, mini quiz, ödev teslimi ve puanlama, grup projeleri (görev panosu + grup sohbeti), proje şablonları, takvim, katılım takibi, telefona yüklenebilir uygulama (PWA), tarayıcı bildirimleri, e-postayla şifre sıfırlama, veritabanı yedeği. 426 test (PostgreSQL'de de geçiyor) |
 
 ---
 
@@ -394,9 +394,15 @@ KodKoç artık herkesin kendi bilgisayarında değil, **tek bir sunucuda ortak**
 | Mini quiz | `kodkoc.py` → `QUIZ_TALIMATI`, `quiz_iste()`, `quiz_kontrol()`; `app.py` → `quiz_olustur()`, `quiz_cevapla()`, `quiz_hazirla()` |
 | Ödevler | `app.py` → `odev_ver()`, `odev()`, `odevler()`, `odev_teslimleri()`, `teslim_puanla()`; `veritabani.py` 28. bölüm; `templates/odev*.html` |
 | Grup projeleri | `app.py` → `grup_kur()`, `grup_sayfasi()`, `gorev_ekle()`, `gorev_guncelle()`, `grup_sohbeti()`; `veritabani.py` 29. bölüm; `templates/grup.html` |
+| Proje şablonları | `app.py` → `sablon_adimlari()`, `sablondan_yol_haritasi()`, `sablonlar()`, `sinif_sablonu()`; `templates/sablon*.html` |
+| Takvim | `app.py` → `takvim()` (`calendar` modülü); `templates/takvim.html` |
+| Katılım | `app.py` → `girmeyenler()`, `kullaniciyi_yukle()` (son giriş günü) |
+| PWA ve bildirimler | `static/manifest.webmanifest`, `static/sw.js`, `app.py` → `hizmet_iscisi()`, `bildirim_sayilari()`; `templates/taban.html` |
+| E-postayla şifre sıfırlama | `app.py` → `sifremi_unuttum()`, `sifre_sifirla()`, `eposta_gonder()`; `veritabani.py` 31. bölüm |
+| Yedek | `yedek_al.py` (`yedek_al()`, `geri_yukle()`) |
 | Sınıf sohbeti ve özel mesaj | `app.py` → `mesajlar()`, `sinif_sohbeti()`, `ozel_sohbet()`, `sohbet_yeni()`, `mesaj_sil()`, `sohbet_ayari()`; `veritabani.py` 25. bölüm; `templates/mesajlar.html`, `templates/sohbet.html` |
 | Fork ve kopuk bağlantı düzeltmeleri | `veritabani.py` → `_postgres_havuzu()`, `Baglanti.close()`, `baglanti_teshisi()` |
-| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py`, `tests/test_mesajlasma.py`, `tests/test_bildir_engelle.py`, `tests/test_kod_dene.py`, `tests/test_quiz.py`, `tests/test_odevler.py`, `tests/test_gruplar.py` |
+| Testler | `tests/test_canli.py`, `tests/test_tasima.py`, `tests/test_hesap_islemleri.py`, `tests/test_hedefler.py`, `tests/test_sinif_projesi.py`, `tests/test_degerlendirme.py`, `tests/test_ogretmene_sor.py`, `tests/test_rapor_ve_oneri.py`, `tests/test_notlar_ve_yeni_rozetler.py`, `tests/test_demo_veri.py`, `tests/test_mesajlasma.py`, `tests/test_bildir_engelle.py`, `tests/test_kod_dene.py`, `tests/test_quiz.py`, `tests/test_odevler.py`, `tests/test_gruplar.py`, `tests/test_ogretmen_araclari.py`, `tests/test_pwa_eposta_yedek.py` |
 
 ### Hocanın sorabileceği sorular
 
@@ -520,6 +526,15 @@ Hayır. Sorular veritabanında JSON olarak duruyor (`json.dumps` / `json.loads`)
 
 **Grup projeleri nasıl?**
 Öğretmen sınıfta grup kuruyor ve öğrencileri seçiyor; sınıfta olmayan biri gruba eklenemiyor (`INSERT ... SELECT ... WHERE EXISTS`). Her grubun bir görev panosu (Yapılacak / Yapılıyor / Bitti, kime atandığıyla) ve kendi sohbeti var. Grup sohbeti, sınıf sohbetinin altyapısını kullanıyor: mesajlar tablosuna `grup_id` sütunu ekledim; bildirme, engelleme, silme aynen çalışıyor. Öğrenci sınıftan ayrılınca o sınıfın gruplarından da çıkıyor.
+
+**Öğretmen şablonu yapay zekânın yerine nasıl geçiyor?**
+Öğretmen adımları düz metin olarak yazıyor (boş satırla ayrılmış; ilk satır başlık). `sablondan_yol_haritasi()` bunu yapay zekânın cevabıyla **aynı biçime** ("### Adım 1: ...") çeviriyor. Böylece `cevabi_parcala()`, yol haritası sayfası, ipucu, quiz... hiçbir şeyi değiştirmeden çalıştı. Şablonlu sınıf projesine başlayan öğrenci yapay zekâya hiç gitmiyor, hakkı da azalmıyor (testi var).
+
+**Telefona yüklenebilir uygulama (PWA) ne demek?**
+Site bir **manifest** (uygulamanın adı, simgesi, rengi) ve bir **service worker** (tarayıcının arka planda çalıştırdığı küçük betik) veriyor. Telefon bunu görünce "Ana ekrana ekle" önerebiliyor ve site ayrı bir uygulama gibi açılıyor. Service worker internet yokken "Çevrimdışısın" sayfasını gösteriyor. Sayfaları bilerek önbelleğe **almıyorum**: içlerinde mesajlar ve notlar var; ortak bir bilgisayarda kalmasınlar. Service worker `/static/` altında değil sitenin kökünde (`/sw.js`), çünkü sadece bulunduğu klasörün altındaki sayfalara karışabiliyor.
+
+**E-postayla şifre sıfırlama güvenli mi?**
+Bağlantıdaki jeton `secrets.token_urlsafe(32)` ile üretiliyor, 1 saat geçerli ve tek kullanımlık. Veritabanında jetonun kendisi değil **SHA-256 özeti** saklanıyor; veritabanı sızsa bile bağlantı üretilemiyor. "Şifremi unuttum" sayfası her durumda aynı cevabı veriyor ("e-posta varsa gönderdik"); böylece biri bu sayfayla hangi kullanıcı adlarının var olduğunu öğrenemiyor. Saatte en fazla 3 istek. SMTP ayarlanmadıysa özellik kapalı; öğrenci şifresini öğretmenden sıfırlatıyor. E-posta isteğe bağlı ve sadece bu iş için kullanılıyor.
 
 **Mesajda biri `<script>` yazarsa ne olur?**
 Hiçbir şey; düz yazı olarak görünür. Sayfada Jinja2 her şeyi otomatik kaçışlıyor (`&lt;script&gt;`). Yoklamayla gelen mesajları betik `innerHTML` ile değil `textContent` ile ekliyor; böylece metin asla kod olarak çalışmıyor (XSS koruması). Testi var.

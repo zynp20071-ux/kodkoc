@@ -1,0 +1,18 @@
+{% extends "taban.html" %}
+{# E-postadaki bağlantıyla yeni şifre belirleme (9. hafta) #}
+
+{% block baslik %}Yeni şifre · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart giris-karti">
+      <h1>Yeni şifreni belirle</h1>
+      <form method="post">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="yeni_sifre">Yeni şifre <span class="istege-bagli">(en az {{ en_kisa_sifre }} karakter)</span></label>
+        <input type="password" id="yeni_sifre" name="yeni_sifre" minlength="{{ en_kisa_sifre }}" autocomplete="new-password" required>
+        <label for="yeni_sifre_tekrar">Yeni şifre (tekrar)</label>
+        <input type="password" id="yeni_sifre_tekrar" name="yeni_sifre_tekrar" minlength="{{ en_kisa_sifre }}" autocomplete="new-password" required>
+        <button type="submit">Şifremi değiştir</button>
+      </form>
+    </section>
+{% endblock %}

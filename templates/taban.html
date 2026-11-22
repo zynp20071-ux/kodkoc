@@ -8,6 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500..700&family=DM+Sans:wght@400..700&family=Caveat:wght@600&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- Telefona yüklenebilir uygulama (PWA): uygulama adı, simgesi ve rengi -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <meta name="theme-color" content="#B04A27">
+  <link rel="icon" href="{{ url_for('static', filename='ikon-192.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='ikon-192.png') }}">
   <script>
     // Kullanıcı daha önce bir tema seçtiyse, sayfa ÇİZİLMEDEN önce uygula.
     // (Sayfanın sonunda yapsaydık, koyu tema seçen biri bir anlık açık sayfa görürdü.)
@@ -51,6 +56,7 @@
       <a href="{{ url_for('odevler') }}">Ödevler{% if g.bekleyen_odev %}
         <span class="menu-rozeti" title="Teslim bekleyen ödev ya da yeni puan">{{ g.bekleyen_odev }}</span>{% endif %}</a>
       {% endif %}
+      <a href="{{ url_for('takvim') }}">Takvim</a>
       <a href="{{ url_for('kod_dene') }}">Kod dene</a>
       <a href="{{ url_for('mesajlar') }}">Mesajlar{% if g.yeni_mesaj %}
         <span class="menu-rozeti" title="{{ g.yeni_mesaj }} okunmamış mesaj">{{ g.yeni_mesaj }}</span>{% endif %}</a>
@@ -106,6 +112,39 @@
     })();
   </script>
 
+  <script>
+    // Service worker: siteyi telefona "uygulama" olarak yüklenebilir yapar, internet yokken
+    // "çevrimdışısın" sayfasını gösterir. Sayfaları önbelleğe ALMAZ (kişisel veriler saklanmasın).
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(function () {});
+    }
+  </script>
+  {% if g.kullanici %}
+  <script>
+    // Bildirimler: 30 saniyede bir okunmamış sayısını sor. Sekme başlığında göster;
+    // sayı arttıysa, sekme arkadaysa ve izin verildiyse tarayıcı bildirimi göster.
+    (function () {
+      var baslik = document.title;
+      function sor() {
+        fetch("/bildirim-sayilari", {credentials: "same-origin"})
+          .then(function (c) { return c.ok ? c.json() : null; })
+          .then(function (s) {
+            if (!s) return;
+            document.title = (s.toplam ? "(" + s.toplam + ") " : "") + baslik;
+            var onceki = parseInt(sessionStorage.getItem("kodkoc-sayi") || "0", 10);
+            sessionStorage.setItem("kodkoc-sayi", s.toplam);
+            if (s.toplam > onceki && document.hidden && window.Notification && Notification.permission === "granted") {
+              var metin = s.mesaj ? s.mesaj + " okunmamış mesajın var." : "KodKoç'ta yeni bir şey var.";
+              new Notification("KodKoç", {body: metin, icon: "/static/ikon-192.png", tag: "kodkoc"});
+            }
+          })
+          .catch(function () {});
+      }
+      sor();
+      setInterval(sor, 30000);
+    })();
+  </script>
+  {% endif %}
   {% block betik %}{% endblock %}
 </body>
 </html>

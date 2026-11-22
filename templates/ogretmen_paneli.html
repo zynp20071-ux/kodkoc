@@ -6,6 +6,7 @@
 {% block icerik %}
     <h1>Öğretmen paneli</h1>
     <p class="aciklama">Bir sınıf aç, katılım kodunu öğrencilerinle paylaş. Kodla katılan öğrencilerin ilerlemesini buradan takip edebilirsin.</p>
+    <p class="panel-baglantilari"><a href="{{ url_for('sablonlar') }}">Proje şablonlarım</a> · <a href="{{ url_for('takvim') }}">Ödev takvimi</a> · <a href="{{ url_for('mesajlar') }}">Mesajlar</a></p>
 
     <section class="kart">
       <form method="post" action="{{ url_for('sinif_olustur') }}" class="satir-form">
@@ -79,6 +80,7 @@
             <span class="sinif-ozeti">
               Ortalama ilerleme %{{ sinif.ortalama }}
               {% if sinif.baslamayan %}· {{ sinif.baslamayan }} öğrenci başlamadı{% endif %}
+              {% if sinif.girmeyen %}· {{ sinif.girmeyen }} öğrenci 7 gündür girmedi{% endif %}
               {% if sinif.geciken %}· <span class="hedef-etiketi hedef-gecikti">{{ sinif.geciken }} geciken adım</span>{% endif %}
             </span>
             {% endif %}

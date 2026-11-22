@@ -1,0 +1,38 @@
+{% extends "taban.html" %}
+{# Öğretmen: bir şablonu düzenleme ve öğrencinin göreceği adımların önizlemesi (9. hafta) #}
+
+{% block baslik %}{{ sablon.ad }} · Şablon · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('sablonlar') }}" class="geri-baglanti">← Şablonlarım</a></p>
+    <h1>{{ sablon.ad }}</h1>
+
+    <section class="kart sablon-onizleme">
+      <p class="ipucu-etiket">Öğrencinin göreceği adımlar ({{ onizleme | length }})</p>
+      <ol>
+        {% for baslik, aciklama in onizleme %}
+        <li><strong>{{ baslik }}</strong>{% if aciklama %}<p>{{ aciklama }}</p>{% endif %}</li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section class="kart">
+      <h2 class="ara-baslik">Düzenle</h2>
+      <form method="post" action="{{ url_for('sablon_duzenle', sablon_id=sablon.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="sablon-ad">Şablon adı</label>
+        <input type="text" id="sablon-ad" name="ad" maxlength="80" required value="{{ sablon.ad }}">
+        <label for="sablon-adimlar">Adımlar <span class="istege-bagli">(boş satırla ayır, ilk satır başlık)</span></label>
+        <textarea id="sablon-adimlar" name="adimlar" rows="14" maxlength="{{ en_uzun }}" required>{{ sablon.adimlar }}</textarea>
+        <button type="submit">Kaydet</button>
+      </form>
+      <p class="ipucu-yazi">Değişiklik, daha önce çıkarılmış yol haritalarını değiştirmez; sadece bundan sonra başlayanlar yeni adımları görür.</p>
+    </section>
+
+    <form method="post" action="{{ url_for('sablon_duzenle', sablon_id=sablon.id) }}"
+          onsubmit="return confirm('Şablon silinsin mi?');">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <input type="hidden" name="islem" value="sil">
+      <button type="submit" class="sil">Şablonu sil</button>
+    </form>
+{% endblock %}

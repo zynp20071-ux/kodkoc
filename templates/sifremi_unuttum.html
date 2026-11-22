@@ -1,0 +1,24 @@
+{% extends "taban.html" %}
+{# Şifremi unuttum: e-posta ayarlıysa sıfırlama bağlantısı ister, değilse öğretmene yönlendirir (9. hafta) #}
+
+{% block baslik %}Şifremi unuttum · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart giris-karti">
+      <h1>Şifremi unuttum</h1>
+      {% if eposta_acik %}
+      <p class="aciklama">Kullanıcı adını yaz. Hesabına e-posta eklediysen 1 saat geçerli bir sıfırlama bağlantısı göndereceğiz.</p>
+      <form method="post" action="{{ url_for('sifremi_unuttum') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="kullanici_adi">Kullanıcı adı</label>
+        <input type="text" id="kullanici_adi" name="kullanici_adi" required autocomplete="username">
+        <button type="submit">Bağlantı gönder</button>
+      </form>
+      <p class="ipucu-yazi">E-posta eklemediysen öğretmenin sana geçici bir şifre verebilir.</p>
+      {% else %}
+      <p class="aciklama">Öğrenciysen öğretmenine söyle: öğrenci sayfandan sana geçici bir şifre verebilir.
+        Öğretmensen siteyi yöneten kişiye haber ver.</p>
+      {% endif %}
+      <p class="alt-baglanti"><a href="{{ url_for('giris') }}">← Girişe dön</a></p>
+    </section>
+{% endblock %}

@@ -82,6 +82,26 @@
     </section>
     {% endif %}
 
+    <!-- Bildirimler ve e-posta -->
+    <section class="kart profil-bolumu" id="bildirim-ayari">
+      <h2 class="ara-baslik">Bildirimler</h2>
+      <p class="ipucu-yazi" id="bildirim-durumu">Yeni mesaj ya da ödev gelince KodKoç sekmesi arkadayken tarayıcın haber verebilir.</p>
+      <button type="button" id="bildirim-ac" class="ikincil" hidden>Tarayıcı bildirimlerini aç</button>
+    </section>
+
+    {% if eposta_acik %}
+    <section class="kart profil-bolumu" id="eposta">
+      <h2 class="ara-baslik">E-posta <span class="istege-bagli">(isteğe bağlı)</span></h2>
+      <p class="ipucu-yazi">Sadece şifreni unutursan sıfırlama bağlantısı göndermek için kullanılır; kimse göremez.</p>
+      <form method="post" action="{{ url_for('eposta_kaydet') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="eposta-adresi" class="gizli">E-posta</label>
+        <input type="email" id="eposta-adresi" name="eposta" maxlength="120" value="{{ eposta or '' }}" placeholder="ornek@mail.com">
+        <button type="submit" class="ikincil">Kaydet</button>
+      </form>
+    </section>
+    {% endif %}
+
     <!-- Şifre değiştirme -->
     <section class="kart profil-bolumu" id="sifre">
       <h2 class="ara-baslik">Şifremi değiştir</h2>
@@ -120,4 +140,21 @@
       </form>
     </details>
     {% endif %}
+{% endblock %}
+
+{% block betik %}
+  <script>
+    (function () {
+      var dugme = document.getElementById("bildirim-ac");
+      var durum = document.getElementById("bildirim-durumu");
+      if (!window.Notification) { durum.textContent = "Bu tarayıcı bildirimleri desteklemiyor."; return; }
+      function goster() {
+        if (Notification.permission === "granted") { durum.textContent = "Bildirimler açık."; dugme.hidden = true; }
+        else if (Notification.permission === "denied") { durum.textContent = "Bildirimleri engellemişsin; tarayıcı ayarlarından açabilirsin."; dugme.hidden = true; }
+        else { dugme.hidden = false; }
+      }
+      dugme.addEventListener("click", function () { Notification.requestPermission().then(goster); });
+      goster();
+    })();
+  </script>
 {% endblock %}

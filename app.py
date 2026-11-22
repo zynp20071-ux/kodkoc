@@ -22,7 +22,10 @@ dosyasındaki fonksiyonları burada aynen kullanıyoruz.
 """
 
 import csv
+import hashlib
 import json
+import smtplib
+from email.message import EmailMessage
 import html
 import io
 import os
@@ -216,6 +219,9 @@ def kullaniciyi_yukle():
     """
     kullanici_id = session.get("kullanici_id")
     g.kullanici = veritabani.kullanici_getir(kullanici_id) if kullanici_id else None
+    # Katılım takibi: bugün ilk kez giriyorsa "son giriş" gününü yaz (günde bir kez yazılır)
+    if g.kullanici and request.endpoint != "static" and g.kullanici["son_giris"] != date.today().isoformat():
+        veritabani.son_giris_guncelle(kullanici_id, date.today().isoformat())
 
     # Öğrencinin henüz görmediği öğretmen yorumu sayısı (menüdeki rozet için)
     g.okunmamis = 0
@@ -239,7 +245,8 @@ def kullaniciyi_yukle():
 
 
 # Geçici şifreyle giren öğrencinin açabildiği sayfalar (şifre değiştirme, çıkış, sağlık kontrolü, CSS)
-SIFRE_DEGISMEDEN_ACIK_SAYFALAR = {"profil", "sifre_degistir", "cikis", "saglik", "static", "gizlilik"}
+SIFRE_DEGISMEDEN_ACIK_SAYFALAR = {"profil", "sifre_degistir", "cikis", "saglik", "static", "gizlilik",
+                                  "hizmet_iscisi", "cevrimdisi", "bildirim_sayilari"}
 
 
 # ---------------------------------------------------------------------------
@@ -800,18 +807,23 @@ def yol_haritasi():
     if not proje:
         return formu_tekrar_goster("Lütfen önce projeni anlat.")
 
-    anahtar = api_anahtari()
-    if not anahtar:
-        return redirect(url_for("ana_sayfa"))
-    if yz_kotasi_doldu():
-        return formu_tekrar_goster(kota_mesaji())
+    # Öğretmen sınıf projesine kendi adımlarını (şablon) yazdıysa yapay zekâya hiç gidilmez
+    sablon = veritabani.sablon_getir(sinif_proje["sablon_id"]) if sinif_proje and sinif_proje["sablon_id"] else None
+    if sablon:
+        cevap = sablondan_yol_haritasi(sablon)
+    else:
+        anahtar = api_anahtari()
+        if not anahtar:
+            return redirect(url_for("ana_sayfa"))
+        if yz_kotasi_doldu():
+            return formu_tekrar_goster(kota_mesaji())
 
-    try:
-        istemci = genai.Client(api_key=anahtar)
-        cevap = kodkoc.yol_haritasi_iste(istemci, proje, bilgi)
-    except Exception as hata:
-        return formu_tekrar_goster(anlasilir_hata(hata))
-    veritabani.yz_kullanimi_ekle(aktif_id())
+        try:
+            istemci = genai.Client(api_key=anahtar)
+            cevap = kodkoc.yol_haritasi_iste(istemci, proje, bilgi)
+        except Exception as hata:
+            return formu_tekrar_goster(anlasilir_hata(hata))
+        veritabani.yz_kullanimi_ekle(aktif_id())
 
     # 7. haftadaki gibi .md dosyasına da kaydet (sadece yerelde), ayrıca (8. hafta) veritabanına ekle
     dosya_yolu = None if CANLI else kodkoc.kaydet(proje, cevap)
@@ -1323,6 +1335,7 @@ def profil():
                            takvim=takvim_olustur(etkinlik, bugun),
                            en_kisa_sifre=EN_KISA_SIFRE, en_uzun_hakkimda=EN_UZUN_HAKKIMDA,
                            engellenenler=veritabani.engelledikleri(aktif_id()),
+                           eposta=veritabani.eposta_getir(aktif_id()), eposta_acik=eposta_acik_mi(),
                            yz_kalan=kalan_yz_hakki(aktif_id()), yz_sinir=GUNLUK_YZ_SINIRI)
 
 
@@ -1658,6 +1671,7 @@ def ogretmen_paneli():
                               / len(baslayan)) if baslayan else 0,
             "geciken": sum(o["geciken_adim"] for o in ozet),
             "baslamayan": len(ozet) - len(baslayan),
+            "girmeyen": len(girmeyenler([{"son_giris": o["son_giris"]} for o in ozet])),
         })
     return render_template("ogretmen_paneli.html", siniflar=siniflar,
                            bekleyen_sorular=veritabani.ogretmenin_bekleyen_sorulari(aktif_id()),
@@ -1748,6 +1762,8 @@ def sinif_detay(sinif_id):
                            duyurular=veritabani.sinifin_duyurulari(sinif_id),
                            odevler=veritabani.sinifin_odevleri(sinif_id), bugun=date.today().isoformat(),
                            gruplar=veritabani.sinifin_gruplari(sinif_id),
+                           girmeyenler=girmeyenler(ogrenciler),
+                           sablonlar=veritabani.ogretmenin_sablonlari(aktif_id()),
                            akis=veritabani.sinif_etkinlik_akisi(sinif_id),
                            proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
                            en_uzun_duyuru=EN_UZUN_DUYURU, en_uzun_proje=EN_UZUN_SINIF_PROJESI)
@@ -1773,7 +1789,17 @@ def sinif_raporu(sinif_id):
                            takilanlar=veritabani.takilan_adimlar(sinif_id),
                            proje_adimlari=proje_adim_dagilimi(sinif_id) if sinif["proje"] else [],
                            gecikenler=[o for o in ogrenciler if o["geciken"]],
+                           girmeyenler=girmeyenler(ogrenciler),
                            tarih=datetime.now().strftime("%d.%m.%Y %H:%M"))
+
+
+GIRMEYEN_GUN = 7                 # Kaç gündür girmeyen öğrenci "katılım" uyarısında görünür
+
+
+def girmeyenler(ogrenciler, bugun=None):
+    """Son GIRMEYEN_GUN gündür siteye hiç girmemiş öğrenciler (hiç girmemiş olanlar dahil)."""
+    sinir = ((bugun or date.today()) - timedelta(days=GIRMEYEN_GUN)).isoformat()
+    return [o for o in ogrenciler if not o["son_giris"] or o["son_giris"] <= sinir]
 
 
 def sinif_ogrencileri(sinif_id):
@@ -1796,6 +1822,7 @@ def sinif_ogrencileri(sinif_id):
             "proje_yuzde": ilerleme_hesapla(satir["proje_biten"], satir["proje_toplam"]),
             "proje_puan": satir["proje_puan"],
             "son_etkinlik": satir["son_etkinlik"] or None,   # '' ise "henüz yok"
+            "son_giris": satir["son_giris"],
         })
     return ogrenciler
 
@@ -2777,6 +2804,285 @@ def grup_sil(grup_id):
     veritabani.grup_sil(grup_id)
     flash("Grup silindi (görevleri ve sohbeti dahil).", "bilgi")
     return redirect(url_for("sinif_detay", sinif_id=grup["sinif_id"]) + "#gruplar")
+
+
+# ---------------------------------------------------------------------------
+# Proje şablonları (öğretmenin kendi yazdığı adımlar)
+# ---------------------------------------------------------------------------
+
+EN_UZUN_SABLON = 6000
+EN_FAZLA_SABLON_ADIMI = 20
+
+
+def sablon_adimlari(metin):
+    """
+    Şablon metnini adımlara ayırır: boş satırla ayrılmış bloklar; ilk satır başlık, kalanı açıklama.
+    [(baslik, aciklama), ...] döndürür. Başlıktaki "Adım 3:" gibi önekler temizlenir (numara otomatik).
+    """
+    adimlar = []
+    for blok in re.split(r"\n\s*\n", metin.replace("\r\n", "\n").strip()):
+        satirlar = [s.rstrip() for s in blok.strip().splitlines() if s.strip()]
+        if satirlar:
+            adimlar.append((sade_baslik(satirlar[0].strip("#* ")) or satirlar[0], "\n".join(satirlar[1:])))
+    return adimlar
+
+
+def sablondan_yol_haritasi(sablon):
+    """
+    Şablonu, yapay zekânın cevabıyla AYNI biçimde metne çevirir ("### Adım N: ...").
+    Böylece veritabani.cevabi_parcala ve bütün sayfa aynen çalışır; ayrı bir yol yazmaya gerek yok.
+    """
+    parcalar = [f"Öğretmeninin hazırladığı adımlar: {sablon['ad']}", ""]
+    for sira, (baslik, aciklama) in enumerate(sablon_adimlari(sablon["adimlar"]), start=1):
+        parcalar.append(f"### Adım {sira}: {baslik}")
+        for satir in aciklama.splitlines():
+            parcalar.append(satir if satir.lstrip().startswith("-") else f"- {satir}")
+        parcalar.append("")
+    parcalar += ["## Dikkat et", "- Takıldığında ipucu iste ya da öğretmenine sor."]
+    return "\n".join(parcalar)
+
+
+def sablon_formunu_oku():
+    """Formdaki şablonu kontrol eder: (ad, metin, hata)."""
+    ad = request.form.get("ad", "").strip()
+    metin = request.form.get("adimlar", "").strip()
+    adim_sayisi = len(sablon_adimlari(metin))
+    if not ad or len(ad) > 80:
+        return ad, metin, "Şablon adı 1-80 karakter olmalı."
+    if len(metin) > EN_UZUN_SABLON or not 1 <= adim_sayisi <= EN_FAZLA_SABLON_ADIMI:
+        return ad, metin, f"Şablonda 1-{EN_FAZLA_SABLON_ADIMI} adım olmalı (adımları boş bir satırla ayır)."
+    return ad, metin, None
+
+
+@app.route("/ogretmen/sablonlar", methods=["GET", "POST"])
+@ogretmen_gerekli
+def sablonlar():
+    """GET: Öğretmenin şablonları. POST: Yeni şablon kaydeder."""
+    ad = metin = ""
+    if request.method == "POST":
+        ad, metin, hata = sablon_formunu_oku()
+        if hata:
+            flash(hata, "hata")
+        else:
+            veritabani.sablon_kaydet(aktif_id(), ad, metin)
+            flash("Şablon kaydedildi. Sınıf sayfasında sınıf projesine bağlayabilirsin.", "bilgi")
+            return redirect(url_for("sablonlar"))
+    return render_template("sablonlar.html", sablonlar=veritabani.ogretmenin_sablonlari(aktif_id()),
+                           ad=ad, metin=metin, en_fazla=EN_FAZLA_SABLON_ADIMI, en_uzun=EN_UZUN_SABLON)
+
+
+def ogretmenin_sablonu(sablon_id):
+    sablon = veritabani.sablon_getir(sablon_id)
+    if sablon is None or sablon["ogretmen_id"] != aktif_id():
+        abort(404)
+    return sablon
+
+
+@app.route("/ogretmen/sablon/<int:sablon_id>", methods=["GET", "POST"])
+@ogretmen_gerekli
+def sablon_duzenle(sablon_id):
+    """GET: Şablonu ve önizlemesini gösterir. POST: Günceller (islem=sil ise siler)."""
+    sablon = ogretmenin_sablonu(sablon_id)
+    if request.method == "POST":
+        if request.form.get("islem") == "sil":
+            veritabani.sablon_sil(sablon_id)
+            flash("Şablon silindi. Onu kullanan sınıflarda adımları yine yapay zekâ çıkaracak.", "bilgi")
+            return redirect(url_for("sablonlar"))
+        ad, metin, hata = sablon_formunu_oku()
+        if hata:
+            flash(hata, "hata")
+        else:
+            veritabani.sablon_kaydet(aktif_id(), ad, metin, sablon_id)
+            flash("Şablon güncellendi. (Daha önce çıkarılmış yol haritaları değişmez.)", "bilgi")
+        return redirect(url_for("sablon_duzenle", sablon_id=sablon_id))
+    return render_template("sablon.html", sablon=sablon, onizleme=sablon_adimlari(sablon["adimlar"]),
+                           en_uzun=EN_UZUN_SABLON)
+
+
+@app.route("/ogretmen/sinif/<int:sinif_id>/sablon", methods=["POST"])
+@ogretmen_gerekli
+def sinif_sablonu(sinif_id):
+    """POST: Sınıf projesinin adımlarını bir şablondan al (ya da boş: yapay zekâ çıkarsın)."""
+    if veritabani.sinif_getir(sinif_id, aktif_id()) is None:
+        abort(404)
+    sablon_id = request.form.get("sablon_id", type=int)
+    if sablon_id:
+        ogretmenin_sablonu(sablon_id)                 # Başka öğretmenin şablonu seçilemez
+    veritabani.sinif_sablonu_ayarla(sinif_id, sablon_id or None)
+    flash("Kaydedildi. Bundan sonra sınıf projesine başlayan öğrenciler " +
+          ("senin adımlarınla başlayacak." if sablon_id else "yapay zekânın çıkardığı adımlarla başlayacak."), "bilgi")
+    return redirect(url_for("sinif_detay", sinif_id=sinif_id) + "#sinif-projesi")
+
+
+# ---------------------------------------------------------------------------
+# Takvim
+# ---------------------------------------------------------------------------
+
+AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül",
+             "Ekim", "Kasım", "Aralık"]
+
+
+@app.route("/takvim", methods=["GET"])
+@giris_gerekli
+def takvim():
+    """
+    GET: Aylık takvim (?ay=2026-11). Öğrenci: adım hedefleri + ödev son tarihleri.
+    Öğretmen: sınıflarına verdiği ödevler. calendar modülü ayı haftalara böler.
+    """
+    import calendar
+    bugun = date.today()
+    try:
+        yil, ay = (int(x) for x in request.args.get("ay", "").split("-"))
+        ilk = date(yil, ay, 1)
+    except ValueError:
+        ilk = bugun.replace(day=1)
+    haftalar = calendar.Calendar(firstweekday=0).monthdatescalendar(ilk.year, ilk.month)
+    bas, son = haftalar[0][0].isoformat(), haftalar[-1][-1].isoformat()
+
+    olaylar = {}                                    # {"2026-11-21": [{tur, metin, adres, bitti}, ...]}
+    if g.kullanici["rol"] == "ogrenci":
+        for h in veritabani.takvim_hedefleri(aktif_id(), bas, son):
+            olaylar.setdefault(h["hedef_tarih"], []).append({
+                "tur": "hedef", "metin": adim_basligi(h["baslik"], h["sira"]), "bitti": bool(h["tamamlandi"]),
+                "adres": url_for("yol_haritasi_goster", harita_id=h["harita_id"]) + f"#adim-{h['adim_id']}"})
+    ogretmen = g.kullanici["rol"] == "ogretmen"
+    for o in veritabani.takvim_odevleri(aktif_id(), bas, son):
+        olaylar.setdefault(o["son_tarih"], []).append({
+            "tur": "odev", "metin": f"Ödev: {o['baslik']}" + (f" ({o['sinif_adi']})" if ogretmen else ""),
+            "bitti": bool(o["teslim_id"]),
+            "adres": url_for("odev_teslimleri" if ogretmen else "odev", odev_id=o["id"])})
+
+    onceki = (ilk - timedelta(days=1)).replace(day=1)
+    sonraki = (ilk + timedelta(days=32)).replace(day=1)
+    return render_template("takvim.html", haftalar=haftalar, olaylar=olaylar, ilk=ilk, bugun=bugun,
+                           baslik=f"{AY_ADLARI[ilk.month - 1]} {ilk.year}",
+                           onceki=onceki.strftime("%Y-%m"), sonraki=sonraki.strftime("%Y-%m"))
+
+
+# ---------------------------------------------------------------------------
+# Telefona yüklenebilir uygulama (PWA) ve tarayıcı bildirimleri
+# ---------------------------------------------------------------------------
+
+@app.route("/sw.js")
+def hizmet_iscisi():
+    """
+    Service worker dosyası. Sitenin KÖKÜNDEN (/sw.js) verilmeli: bir service worker sadece
+    bulunduğu klasör ve altındaki sayfalara karışabilir; /static/ altında olsaydı sayfaları kapsamazdı.
+    """
+    cevap = make_response(send_file(os.path.join(app.static_folder, "sw.js"), mimetype="text/javascript"))
+    cevap.headers["Cache-Control"] = "no-cache"     # Güncelleme hemen gelsin
+    return cevap
+
+
+@app.route("/cevrimdisi")
+def cevrimdisi():
+    """İnternet yokken service worker'ın gösterdiği sayfa (önbellekte saklanır)."""
+    return render_template("cevrimdisi.html")
+
+
+@app.route("/bildirim-sayilari")
+@giris_gerekli
+def bildirim_sayilari():
+    """
+    GET (JSON): Menüdeki sayıların toplamı. Her sayfadaki küçük betik bunu 30 saniyede bir sorar;
+    sayı artmışsa ve kullanıcı izin verdiyse tarayıcı bildirimi gösterir.
+    (Sayılar kullaniciyi_yukle'de zaten hesaplandı; burada sadece JSON'a çeviriyoruz.)
+    """
+    return jsonify({"mesaj": g.yeni_mesaj, "odev": g.bekleyen_odev, "diger": g.okunmamis + g.yeni_duyuru,
+                    "toplam": g.yeni_mesaj + g.bekleyen_odev + g.okunmamis + g.yeni_duyuru})
+
+
+# ---------------------------------------------------------------------------
+# E-postayla şifre sıfırlama (sadece sunucuda SMTP ayarlıysa açık)
+# ---------------------------------------------------------------------------
+
+EPOSTA_KURALI = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+SIFIRLAMA_DAKIKA = 60
+EN_FAZLA_SIFIRLAMA_SAAT = 3
+
+
+def eposta_acik_mi():
+    return bool(os.getenv("SMTP_SUNUCU"))
+
+
+def eposta_gonder(alici, konu, metin):
+    """
+    SMTP ile e-posta gönderir. Ayarlar ortam değişkenlerinden gelir (koda şifre yazılmaz):
+    SMTP_SUNUCU, SMTP_PORT (varsayılan 587), SMTP_KULLANICI, SMTP_SIFRE, SMTP_GONDEREN.
+    """
+    mesaj = EmailMessage()
+    mesaj["Subject"] = konu
+    mesaj["From"] = os.getenv("SMTP_GONDEREN") or os.getenv("SMTP_KULLANICI")
+    mesaj["To"] = alici
+    mesaj.set_content(metin)
+    with smtplib.SMTP(os.getenv("SMTP_SUNUCU"), int(os.getenv("SMTP_PORT", "587")), timeout=15) as sunucu:
+        sunucu.starttls()                            # Bağlantıyı şifrele
+        if os.getenv("SMTP_KULLANICI"):
+            sunucu.login(os.getenv("SMTP_KULLANICI"), os.getenv("SMTP_SIFRE", ""))
+        sunucu.send_message(mesaj)
+
+
+def jeton_ozeti(jeton):
+    return hashlib.sha256(jeton.encode()).hexdigest()
+
+
+@app.route("/sifremi-unuttum", methods=["GET", "POST"])
+def sifremi_unuttum():
+    """
+    GET: Kullanıcı adını soran form. POST: Hesapta e-posta varsa 1 saat geçerli bir bağlantı gönderir.
+    Cevap HER ZAMAN aynıdır ("varsa gönderdik"): böylece biri bu sayfayla hangi kullanıcı adlarının
+    var olduğunu ya da kimin e-posta eklediğini öğrenemez.
+    """
+    if request.method == "POST" and eposta_acik_mi():
+        kisi = veritabani.sifirlama_icin_kullanici(request.form.get("kullanici_adi", "").strip())
+        if (kisi and kisi["eposta"]
+                and veritabani.son_saat_sifirlama_sayisi(kisi["id"]) < EN_FAZLA_SIFIRLAMA_SAAT):
+            jeton = secrets.token_urlsafe(32)
+            veritabani.sifirlama_jetonu_ekle(kisi["id"], jeton_ozeti(jeton), SIFIRLAMA_DAKIKA)
+            adres = url_for("sifre_sifirla", jeton=jeton, _external=True)
+            try:
+                eposta_gonder(kisi["eposta"], "KodKoç şifre sıfırlama",
+                              f"Merhaba {kisi['kullanici_adi']},\n\nŞifreni sıfırlamak için bu bağlantıyı aç "
+                              f"({SIFIRLAMA_DAKIKA} dakika geçerli, bir kez kullanılabilir):\n{adres}\n\n"
+                              "Bu isteği sen yapmadıysan bu e-postayı görmezden gel; şifren değişmez.")
+            except (OSError, smtplib.SMTPException):
+                app.logger.exception("Şifre sıfırlama e-postası gönderilemedi")
+        flash("Bu kullanıcı adına bağlı bir e-posta varsa sıfırlama bağlantısını gönderdik. "
+              "Gelen kutunu (ve gereksiz klasörünü) kontrol et.", "bilgi")
+        return redirect(url_for("giris"))
+    return render_template("sifremi_unuttum.html", eposta_acik=eposta_acik_mi())
+
+
+@app.route("/sifre-sifirla/<jeton>", methods=["GET", "POST"])
+def sifre_sifirla(jeton):
+    """GET: Yeni şifre formu. POST: Jeton geçerliyse şifreyi değiştirir (jeton bir kez kullanılır)."""
+    ozet = jeton_ozeti(jeton)
+    if veritabani.gecerli_sifirlama(ozet) is None:
+        flash("Bu bağlantının süresi dolmuş ya da kullanılmış. Yeniden isteyebilirsin.", "hata")
+        return redirect(url_for("sifremi_unuttum"))
+    if request.method == "POST":
+        yeni = request.form.get("yeni_sifre", "")
+        if len(yeni) < EN_KISA_SIFRE:
+            flash(f"Şifre en az {EN_KISA_SIFRE} karakter olmalı.", "hata")
+        elif yeni != request.form.get("yeni_sifre_tekrar", ""):
+            flash("İki şifre aynı değil.", "hata")
+        elif veritabani.sifreyi_jetonla_degistir(ozet, yeni):
+            flash("Şifren değişti. Yeni şifrenle giriş yapabilirsin.", "bilgi")
+            return redirect(url_for("giris"))
+    return render_template("sifre_sifirla.html", en_kisa_sifre=EN_KISA_SIFRE)
+
+
+@app.route("/profil/eposta", methods=["POST"])
+@giris_gerekli
+def eposta_kaydet():
+    """POST: Şifre sıfırlama için isteğe bağlı e-posta adresi (boş bırakılırsa silinir)."""
+    eposta = request.form.get("eposta", "").strip()
+    if eposta and (len(eposta) > 120 or not EPOSTA_KURALI.match(eposta)):
+        flash("Geçerli bir e-posta adresi yaz.", "hata")
+    else:
+        veritabani.eposta_kaydet(aktif_id(), eposta)
+        flash("E-posta adresin kaydedildi." if eposta else "E-posta adresin silindi.", "bilgi")
+    return redirect(url_for("profil") + "#eposta")
 
 
 @app.route("/gizlilik", methods=["GET"])

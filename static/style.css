@@ -1424,3 +1424,27 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 .gorev-karti button { margin: 0; }
 .uye-secimi { border: 1px solid var(--cizgi); border-radius: 10px; padding: 8px 12px; margin: 10px 0; }
 .uye-secimi .onay-kutusu { display: inline-flex; margin-right: 14px; }
+
+/* --- Takvim --- */
+.takvim-ust { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.takvim { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 12px 0; }
+.takvim th { font-size: 13px; color: var(--gri); padding: 6px 0; }
+.takvim td { border: 1px solid var(--cizgi); vertical-align: top; height: 92px; padding: 4px; background: var(--kart); }
+.takvim td.baska-ay { background: var(--zemin); color: var(--gri); }
+.takvim td.bugun { outline: 2px solid var(--vurgu); outline-offset: -2px; }
+.takvim .gun-no { font-size: 13px; font-weight: 700; }
+.takvim-olayi { display: block; font-size: 12px; border-radius: 6px; padding: 2px 5px; margin-top: 3px;
+                text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.takvim-olayi.hedef { background: var(--vurgu-acik); color: var(--vurgu-koyu); }
+.takvim-olayi.odev { background: var(--yesil-acik); color: var(--yesil-yazi); }
+.takvim-olayi.bitti { text-decoration: line-through; opacity: 0.7; }
+@media (max-width: 640px) { .takvim td { height: 64px; } .takvim-olayi { font-size: 10px; } }
+
+/* --- Katılım ve şablonlar --- */
+.katilim { border-color: var(--vurgu); }
+.katilim h2 { font-size: 18px; margin: 0 0 6px; }
+.sablon-onizleme ol { padding-left: 22px; }
+.sablon-onizleme li { margin-bottom: 8px; }
+.sablon-onizleme p { margin: 2px 0 0; white-space: pre-wrap; color: var(--yumusak); font-size: 14px; }
+
+.panel-baglantilari { margin: -6px 0 14px; font-weight: 600; }

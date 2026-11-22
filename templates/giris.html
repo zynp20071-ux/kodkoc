@@ -21,6 +21,7 @@
         <input type="password" id="sifre" name="sifre" autocomplete="current-password" required>
 
         <button type="submit">Giriş yap</button>
+        <p class="alt-baglanti"><a href="{{ url_for('sifremi_unuttum') }}">Şifremi unuttum</a></p>
       </form>
       <p class="alt-baglanti">Hesabın yok mu? <a href="{{ url_for('kayit') }}">Kayıt ol</a></p>
     </section>

@@ -635,6 +635,34 @@ def hazirla():
         # Grup sohbetindeki mesajlarda grup_id dolu olur (sinif_id ve alici_id boş)
         sutun_yoksa_ekle(baglanti, "mesajlar", "grup_id", "INTEGER")
         baglanti.execute("CREATE INDEX IF NOT EXISTS mesaj_grup ON mesajlar (grup_id, id)")
+        # Proje şablonları: öğretmenin kendi yazdığı adımlar (yapay zekâ yerine). adimlar: düz metin;
+        # her adım boş bir satırla ayrılır, ilk satır başlık, kalanı açıklama.
+        baglanti.execute("""
+            CREATE TABLE IF NOT EXISTS sablonlar (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                ogretmen_id      INTEGER NOT NULL REFERENCES kullanicilar(id),
+                ad               TEXT NOT NULL,
+                adimlar          TEXT NOT NULL,
+                olusturma_zamani TEXT NOT NULL
+            )
+        """)
+        # Sınıf projesi bir şablondan mı? (boşsa adımları yapay zekâ çıkarır)
+        sutun_yoksa_ekle(baglanti, "siniflar", "sablon_id", "INTEGER")
+        # Katılım: kullanıcının siteye en son girdiği gün (günde bir kez güncellenir)
+        sutun_yoksa_ekle(baglanti, "kullanicilar", "son_giris", "TEXT")
+        # E-postayla şifre sıfırlama: isteğe bağlı e-posta adresi ve tek kullanımlık jetonlar.
+        # Jetonun kendisi değil SHA-256 özeti saklanır (veritabanı sızsa bile bağlantı kullanılamasın).
+        sutun_yoksa_ekle(baglanti, "kullanicilar", "eposta", "TEXT")
+        baglanti.execute("""
+            CREATE TABLE IF NOT EXISTS sifre_sifirlama (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                kullanici_id  INTEGER NOT NULL REFERENCES kullanicilar(id),
+                jeton_ozeti   TEXT NOT NULL UNIQUE,
+                olusturma     TEXT NOT NULL,
+                son_gecerlilik TEXT NOT NULL,
+                kullanildi    INTEGER NOT NULL DEFAULT 0
+            )
+        """)
         # Öğrencilerin öğretmene bildirdiği mesajlar (küfür, zorbalık...). Aynı kişi aynı mesajı
         # bir kez bildirebilir (UNIQUE). durum: 'acik' ya da 'kapandi'
         baglanti.execute("""
@@ -1070,7 +1098,7 @@ def kullanici_getir(kullanici_id):
     baglanti = baglan()
     try:
         return baglanti.execute(
-            "SELECT id, kullanici_adi, rol, gecici_sifre FROM kullanicilar WHERE id = ?", (kullanici_id,)
+            "SELECT id, kullanici_adi, rol, gecici_sifre, son_giris FROM kullanicilar WHERE id = ?", (kullanici_id,)
         ).fetchone()
     finally:
         baglanti.close()
@@ -1258,7 +1286,7 @@ def ogrencinin_siniflari(ogrenci_id):
     baglanti = baglan()
     try:
         return baglanti.execute("""
-            SELECT s.id, s.ad, s.proje, k.kullanici_adi AS ogretmen_adi, u.katilma_zamani,
+            SELECT s.id, s.ad, s.proje, s.sablon_id, k.kullanici_adi AS ogretmen_adi, u.katilma_zamani,
                    -- Bu sınıfın projesi için çıkardığı en son yol haritası (yoksa boş)
                    (SELECT MAX(y.id) FROM yol_haritalari y
                      WHERE y.kullanici_id = u.ogrenci_id AND y.sinif_id = s.id) AS proje_harita_id
@@ -1285,7 +1313,7 @@ def sinif_ozeti(sinif_id):
         hafta_basi = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
         bugun = datetime.now().strftime("%Y-%m-%d")
         return baglanti.execute(f"""
-            SELECT k.id, k.kullanici_adi, u.katilma_zamani,
+            SELECT k.id, k.kullanici_adi, u.katilma_zamani, k.son_giris,
                    -- Son 7 günde yapay zekâya gönderdiği istek sayısı (yz_kullanimi tablosundan)
                    (SELECT COALESCE(SUM(z.sayi), 0) FROM yz_kullanimi z
                      WHERE z.kullanici_id = k.id AND z.gun >= ?)        AS yz_hafta,
@@ -2226,6 +2254,8 @@ def hesap_sil(kullanici_id, sifre):
         baglanti.execute(f"UPDATE yol_haritalari SET sinif_id = NULL WHERE sinif_id IN ({siniflari})",
                          {"k": kullanici_id})
         baglanti.execute("DELETE FROM siniflar WHERE ogretmen_id = :k", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM sablonlar WHERE ogretmen_id = :k", {"k": kullanici_id})
+        baglanti.execute("DELETE FROM sifre_sifirlama WHERE kullanici_id = :k", {"k": kullanici_id})
 
         # 3) Üyelikler, yapay zekâ sayacı, giriş denemeleri ve en son kullanıcı
         baglanti.execute("DELETE FROM sinif_uyeleri WHERE ogrenci_id = :k", {"k": kullanici_id})
@@ -2904,7 +2934,9 @@ def okunmamis_mesaj_sayisi(kullanici_id):
     """Menüdeki "Mesajlar" rozeti: bütün sınıf sohbetlerindeki ve özel sohbetlerdeki okunmamışlar."""
     baglanti = baglan()
     try:
-        return baglanti.execute(f"""
+        # int(...): PostgreSQL'de SUM(COUNT) "numeric" türünde (Python'da Decimal) gelir;
+        # JSON'a "0" gibi metin olarak yazılmasın diye tam sayıya çeviriyoruz.
+        return int(baglanti.execute(f"""
             SELECT
               (SELECT COALESCE(SUM({_OKUNMAMIS_SINIF.format(sinif='s.id')}), 0)
                  FROM siniflar s WHERE s.id IN {_SINIFLARI})
@@ -2916,7 +2948,7 @@ def okunmamis_mesaj_sayisi(kullanici_id):
                                             WHERE e.engelleyen_id = :k)
                   AND x.id > COALESCE((SELECT o.son_okunan_id FROM sohbet_okuma o
                         WHERE o.kullanici_id = :k AND o.sinif_id = 0 AND o.diger_id = x.gonderen_id), 0))
-        """, {"k": kullanici_id}).fetchone()[0]
+        """, {"k": kullanici_id}).fetchone()[0])
     finally:
         baglanti.close()
 
@@ -3503,5 +3535,221 @@ def grup_okundu_yap(kullanici_id, grup_id, son_id):
             DO UPDATE SET son_okunan_id = {BUYUGU}(grup_okuma.son_okunan_id, excluded.son_okunan_id)
         """, (kullanici_id, grup_id, son_id))
         baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 30) ÖĞRETMEN ARAÇLARI: proje şablonları, katılım, takvim
+# ---------------------------------------------------------------------------
+
+def sablon_kaydet(ogretmen_id, ad, adimlar, sablon_id=None):
+    """Yeni şablon ekler ya da (sablon_id verilirse ve öğretmenin kendisininse) günceller."""
+    zaman = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    baglanti = baglan()
+    try:
+        if sablon_id:
+            baglanti.execute("UPDATE sablonlar SET ad = ?, adimlar = ? WHERE id = ? AND ogretmen_id = ?",
+                             (ad, adimlar, sablon_id, ogretmen_id))
+        else:
+            sablon_id = baglanti.ekle("""INSERT INTO sablonlar (ogretmen_id, ad, adimlar, olusturma_zamani)
+                                         VALUES (?, ?, ?, ?)""", (ogretmen_id, ad, adimlar, zaman))
+        baglanti.commit()
+        return sablon_id
+    finally:
+        baglanti.close()
+
+
+def ogretmenin_sablonlari(ogretmen_id):
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT t.*, (SELECT COUNT(*) FROM siniflar s WHERE s.sablon_id = t.id) AS sinif_sayisi
+            FROM sablonlar t WHERE t.ogretmen_id = ? ORDER BY LOWER(t.ad)
+        """, (ogretmen_id,)).fetchall()
+    finally:
+        baglanti.close()
+
+
+def sablon_getir(sablon_id):
+    baglanti = baglan()
+    try:
+        return baglanti.execute("SELECT * FROM sablonlar WHERE id = ?", (sablon_id,)).fetchone()
+    finally:
+        baglanti.close()
+
+
+def sablon_sil(sablon_id):
+    """Şablonu siler; onu kullanan sınıflar yapay zekâya döner. Çıkarılmış yol haritaları kalır."""
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE siniflar SET sablon_id = NULL WHERE sablon_id = ?", (sablon_id,))
+        baglanti.execute("DELETE FROM sablonlar WHERE id = ?", (sablon_id,))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def sinif_sablonu_ayarla(sinif_id, sablon_id):
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE siniflar SET sablon_id = ? WHERE id = ?", (sablon_id, sinif_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def son_giris_guncelle(kullanici_id, gun):
+    """Kullanıcının son giriş gününü yazar (sadece gün değiştiyse; her istekte yazmamak için)."""
+    baglanti = baglan()
+    try:
+        baglanti.execute("""UPDATE kullanicilar SET son_giris = ?
+                            WHERE id = ? AND (son_giris IS NULL OR son_giris <> ?)""", (gun, kullanici_id, gun))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def takvim_hedefleri(kullanici_id, bas, son):
+    """Öğrencinin hedef tarihi [bas, son] aralığındaki adımları (bitenler dahil)."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT a.id AS adim_id, a.baslik, a.sira, a.hedef_tarih, a.tamamlandi, y.id AS harita_id
+            FROM adimlar a JOIN yol_haritalari y ON y.id = a.yol_haritasi_id
+            WHERE y.kullanici_id = ? AND a.hedef_tarih BETWEEN ? AND ?
+            ORDER BY a.hedef_tarih, a.sira
+        """, (kullanici_id, bas, son)).fetchall()
+    finally:
+        baglanti.close()
+
+
+def takvim_odevleri(kullanici_id, bas, son):
+    """Son tarihi [bas, son] aralığındaki ödevler: öğrenciyse sınıflarının, öğretmense açtığı sınıfların."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute(f"""
+            SELECT o.id, o.baslik, o.son_tarih, s.ad AS sinif_adi,
+                   (SELECT t.id FROM teslimler t WHERE t.odev_id = o.id AND t.ogrenci_id = :k) AS teslim_id
+            FROM odevler o JOIN siniflar s ON s.id = o.sinif_id
+            WHERE o.sinif_id IN {_SINIFLARI} AND o.son_tarih BETWEEN :bas AND :son
+            ORDER BY o.son_tarih, o.id
+        """, {"k": kullanici_id, "bas": bas, "son": son}).fetchall()
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 31) E-POSTA VE ŞİFRE SIFIRLAMA
+# ---------------------------------------------------------------------------
+
+def eposta_kaydet(kullanici_id, eposta):
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE kullanicilar SET eposta = ? WHERE id = ?", (eposta or None, kullanici_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def eposta_getir(kullanici_id):
+    baglanti = baglan()
+    try:
+        satir = baglanti.execute("SELECT eposta FROM kullanicilar WHERE id = ?", (kullanici_id,)).fetchone()
+        return satir["eposta"] if satir else None
+    finally:
+        baglanti.close()
+
+
+def sifirlama_icin_kullanici(kullanici_adi):
+    """Kullanıcı adına göre (büyük/küçük harf fark etmez) id ve e-posta; yoksa None."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("SELECT id, kullanici_adi, eposta FROM kullanicilar WHERE LOWER(kullanici_adi) = LOWER(?)",
+                                (kullanici_adi,)).fetchone()
+    finally:
+        baglanti.close()
+
+
+def sifirlama_jetonu_ekle(kullanici_id, jeton_ozeti, dakika=60):
+    simdi = datetime.now()
+    baglanti = baglan()
+    try:
+        baglanti.execute("""INSERT INTO sifre_sifirlama (kullanici_id, jeton_ozeti, olusturma, son_gecerlilik)
+                            VALUES (?, ?, ?, ?)""",
+                         (kullanici_id, jeton_ozeti, simdi.strftime("%Y-%m-%d %H:%M:%S"),
+                          (simdi + timedelta(minutes=dakika)).strftime("%Y-%m-%d %H:%M:%S")))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def son_saat_sifirlama_sayisi(kullanici_id):
+    """Son 1 saatte istenen sıfırlama bağlantısı sayısı (birinin e-posta kutusunu doldurmayı önler)."""
+    sinir = (datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    baglanti = baglan()
+    try:
+        return baglanti.execute("SELECT COUNT(*) FROM sifre_sifirlama WHERE kullanici_id = ? AND olusturma >= ?",
+                                (kullanici_id, sinir)).fetchone()[0]
+    finally:
+        baglanti.close()
+
+
+def gecerli_sifirlama(jeton_ozeti):
+    """Kullanılmamış ve süresi dolmamış jetonun satırı; yoksa None."""
+    simdi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""SELECT * FROM sifre_sifirlama
+                                   WHERE jeton_ozeti = ? AND kullanildi = 0 AND son_gecerlilik >= ?""",
+                                (jeton_ozeti, simdi)).fetchone()
+    finally:
+        baglanti.close()
+
+
+def sifreyi_jetonla_degistir(jeton_ozeti, yeni_sifre):
+    """
+    Jeton geçerliyse şifreyi değiştirir, jetonu (ve kişinin diğer jetonlarını) kullanılmış yapar.
+    Hepsi tek işlemde. Başarılıysa kullanıcı id'si, değilse None.
+    """
+    satir = gecerli_sifirlama(jeton_ozeti)
+    if satir is None:
+        return None
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE kullanicilar SET sifre_hash = ?, gecici_sifre = 0 WHERE id = ?",
+                         (generate_password_hash(yeni_sifre), satir["kullanici_id"]))
+        baglanti.execute("UPDATE sifre_sifirlama SET kullanildi = 1 WHERE kullanici_id = ?", (satir["kullanici_id"],))
+        baglanti.execute("""DELETE FROM giris_denemeleri WHERE LOWER(kullanici_adi) =
+                            (SELECT LOWER(kullanici_adi) FROM kullanicilar WHERE id = ?)""", (satir["kullanici_id"],))
+        baglanti.commit()
+        return satir["kullanici_id"]
+    finally:
+        baglanti.close()
+
+
+# ---------------------------------------------------------------------------
+# 32) YEDEK: bütün tabloları sözlük olarak oku (yedek_al.py kullanır)
+# ---------------------------------------------------------------------------
+
+def tablo_adlari():
+    baglanti = baglan()
+    try:
+        if POSTGRES:
+            satirlar = baglanti.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'").fetchall()
+        else:
+            satirlar = baglanti.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").fetchall()
+        return sorted(s[0] for s in satirlar)
+    finally:
+        baglanti.close()
+
+
+def tablonun_satirlari(tablo):
+    if tablo not in tablo_adlari():                  # Tablo adı SQL'e yazılacak; sadece gerçek adlar
+        raise ValueError(tablo)
+    baglanti = baglan()
+    try:
+        return [dict(s) for s in baglanti.execute(f"SELECT * FROM {tablo}").fetchall()]
     finally:
         baglanti.close()

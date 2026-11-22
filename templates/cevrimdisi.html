@@ -1,0 +1,11 @@
+{% extends "taban.html" %}
+{# İnternet bağlantısı yokken service worker'ın gösterdiği sayfa (9. hafta) #}
+
+{% block baslik %}Çevrimdışı · KodKoç{% endblock %}
+
+{% block icerik %}
+    <section class="kart">
+      <h1>İnternet bağlantın yok</h1>
+      <p class="aciklama">KodKoç'a ulaşamadık. Bağlantın gelince sayfayı yenile; yaptıkların kaybolmadı.</p>
+    </section>
+{% endblock %}

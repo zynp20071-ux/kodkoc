@@ -1,0 +1,35 @@
+{% extends "taban.html" %}
+{# Öğretmen: proje şablonları - adımları yapay zekâ yerine öğretmen yazar, her yıl tekrar kullanır (9. hafta) #}
+
+{% block baslik %}Şablonlarım · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('ogretmen_paneli') }}" class="geri-baglanti">← Öğretmen paneli</a></p>
+    <h1>Proje şablonlarım</h1>
+    <p class="aciklama">Sınıf projesinin adımlarını kendin yaz. Bir sınıfa bağlarsan o sınıfın öğrencileri yol haritasını
+      yapay zekâ yerine senin adımlarınla çıkarır (yapay zekâ hakkı harcanmaz). Şablon her yıl tekrar kullanılabilir.</p>
+
+    {% if sablonlar %}
+    <ul class="sohbet-listesi">
+      {% for t in sablonlar %}
+      <li><a class="sohbet-ogesi" href="{{ url_for('sablon_duzenle', sablon_id=t.id) }}">
+        <span class="sohbet-adi">{{ t.ad }}</span>
+        <span class="sohbet-son">{{ t.sinif_sayisi }} sınıfta kullanılıyor · {{ t.olusturma_zamani | tarih }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <section class="kart">
+      <h2 class="ara-baslik">Yeni şablon</h2>
+      <form method="post" action="{{ url_for('sablonlar') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <label for="sablon-ad">Şablon adı</label>
+        <input type="text" id="sablon-ad" name="ad" maxlength="80" required value="{{ ad }}" placeholder="Örnek: Kütüphane takip programı (10. sınıf)">
+        <label for="sablon-adimlar">Adımlar <span class="istege-bagli">(en fazla {{ en_fazla }}; adımları boş bir satırla ayır, ilk satır başlık)</span></label>
+        <textarea id="sablon-adimlar" name="adimlar" rows="14" maxlength="{{ en_uzun }}" required
+                  placeholder="Menüyü hazırla&#10;Kullanıcı seçim yapana kadar menüyü döngüyle göster.&#10;Öğrenilecek: while, input, if/elif&#10;&#10;Kitap ekleme&#10;Kitap adını ve yazarını bir listeye ekle.&#10;Öğrenilecek: listeler, sözlükler">{{ metin }}</textarea>
+        <button type="submit">Şablonu kaydet</button>
+      </form>
+    </section>
+{% endblock %}

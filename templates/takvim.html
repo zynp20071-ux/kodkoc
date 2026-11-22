@@ -1,0 +1,42 @@
+{% extends "taban.html" %}
+{# Takvim: aylık görünüm. Öğrenci: hedefler + ödevler. Öğretmen: verdiği ödevler (9. hafta) #}
+
+{% block baslik %}Takvim · KodKoç{% endblock %}
+
+{% block icerik %}
+    <div class="takvim-ust">
+      <a href="{{ url_for('takvim', ay=onceki) }}" class="geri-baglanti">← Önceki ay</a>
+      <h1>{{ baslik }}</h1>
+      <a href="{{ url_for('takvim', ay=sonraki) }}" class="geri-baglanti">Sonraki ay →</a>
+    </div>
+    <p class="gecmis-durum">
+      {% if g.kullanici.rol == 'ogrenci' %}<span class="takvim-olayi hedef" style="display:inline-block">Adım hedefi</span>{% endif %}
+      <span class="takvim-olayi odev" style="display:inline-block">Ödev son tarihi</span>
+      · Üstü çizili olanlar bitti / teslim edildi.
+      {% if ilk.month != bugun.month or ilk.year != bugun.year %}· <a href="{{ url_for('takvim') }}">Bu aya dön</a>{% endif %}
+    </p>
+
+    <div class="tablo-kutusu">
+      <table class="takvim">
+        <thead><tr>{% for ad in ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] %}<th>{{ ad }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for hafta in haftalar %}
+          <tr>
+            {% for gun in hafta %}
+            <td class="{% if gun.month != ilk.month %}baska-ay{% endif %} {% if gun == bugun %}bugun{% endif %}">
+              <span class="gun-no">{{ gun.day }}</span>
+              {% for o in olaylar.get(gun.isoformat(), []) %}
+              <a class="takvim-olayi {{ o.tur }} {% if o.bitti %}bitti{% endif %}" href="{{ o.adres }}" title="{{ o.metin }}">{{ o.metin }}</a>
+              {% endfor %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not olaylar %}
+    <p class="ipucu-yazi">Bu ay için hedef ya da ödev yok.
+      {% if g.kullanici.rol == 'ogrenci' %}Bir yol haritasında adımlarına hedef tarih koyabilirsin.{% endif %}</p>
+    {% endif %}
+{% endblock %}
