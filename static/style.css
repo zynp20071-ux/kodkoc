@@ -1534,3 +1534,62 @@ button.cikis:hover { color: var(--vurgu); background: none; }
   .panel-dugmesi { right: 14px; bottom: 14px; }
 }
 @media print { .panel-dugmesi, .mesaj-paneli { display: none !important; } }
+
+/* --- 10. hafta: resimler, anketler, davetler --- */
+.mesaj-resmi {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin-top: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--cizgi);
+}
+.resim-sec {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 20px;
+  cursor: pointer;
+  border: 1px solid var(--cizgi);
+  border-radius: 999px;
+  background: var(--alan);
+}
+.resim-sec:hover, .resim-sec:focus-within { border-color: var(--vurgu); }
+.resim-sec[hidden] { display: none; }
+.kucuk-dugme { margin: 0; padding: 6px 16px; font-size: 14px; }
+
+.anket { min-width: min(320px, 100%); }
+.anket-soru { margin: 4px 0; font-weight: 700; }
+.anket-bilgi { margin: 0 0 8px; font-size: 13px; color: var(--gri); }
+.anket-formu { margin: 0; }
+.anket-secenek {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 6px 0;
+  font-weight: 400;
+  cursor: pointer;
+}
+.anket-secenek input { width: auto; margin: 0; }
+.anket-secenek.benim .anket-metin { font-weight: 700; }
+.anket-sayi { font-size: 12px; color: var(--gri); white-space: nowrap; }
+.anket-cubuk { grid-column: 1 / -1; height: 6px; background: var(--cizgi); border-radius: 999px; overflow: hidden; }
+.anket-dolu { display: block; height: 100%; background: var(--yesil); border-radius: 999px; }
+.anket-dugmeleri { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+.anket-not { margin: 4px 0 0; font-size: 13px; color: var(--hata-yazi); }
+.anket-not:empty { display: none; }
+.anket-olustur { margin: 12px 0; }
+.anket-olustur summary { cursor: pointer; font-weight: 600; color: var(--vurgu); }
+.anket-olustur fieldset input { margin: 4px 0; }
+
+.davet-karti { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; }
+.davet-dugmeleri { display: flex; gap: 8px; align-items: center; }
+.davet-dugmeleri form { margin: 0; }
+.panel-davet { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px;
+               background: var(--vurgu-acik); border-radius: 10px; font-size: 14px; }
+.panel-davet span { flex-basis: 100%; }
+.uye-islemleri { display: inline-flex; gap: 6px; margin-left: auto; }
+.uye-islemleri form { margin: 0; }

@@ -37,14 +37,23 @@
     {% endif %}
     {% endif %}
 
-    <ol class="mesaj-listesi" id="mesajlar" data-son="{{ son_id }}" data-adres="{{ yoklama_adresi }}" data-saniye="{{ yoklama }}">
+    <ol class="mesaj-listesi" id="mesajlar" data-son="{{ son_id }}" data-adres="{{ yoklama_adresi }}" data-saniye="{{ yoklama }}"
+        data-csrf="{{ csrf_jetonu() }}">
       {% for m in mesaj_listesi %}
       <li class="mesaj {% if m.benim %}benim{% endif %} {% if m.silindi %}silindi{% endif %}" id="mesaj-{{ m.id }}">
         <span class="mesaj-ust">
           <a href="{{ m.profil }}">{{ m.gonderen }}</a>{% if m.ogretmen %} <span class="ogretmen-etiketi">Öğretmen</span>{% endif %}
           · {{ m.zaman }}
         </span>
+        {% if m.anket %}
+        <!-- Anket: static/anket.js bu kutuyu seçenekler ve oy düğmesiyle çizer -->
+        <div class="anket" data-anket='{{ m.anket | tojson }}'><p class="anket-soru">📊 {{ m.anket.soru }}</p></div>
+        {% elif m.silindi or m.metin %}
         <p class="mesaj-metni">{{ 'Bu mesaj silindi.' if m.silindi else m.metin }}</p>
+        {% endif %}
+        {% if m.resim %}
+        <a href="{{ m.resim }}" target="_blank" rel="noopener"><img class="mesaj-resmi" src="{{ m.resim }}" alt="{{ m.gonderen }} bir resim paylaştı" loading="lazy"></a>
+        {% endif %}
         {% if m.bildirebilir %}
         <details class="mesaj-bildir">
           <summary>Bildir</summary>
@@ -71,13 +80,43 @@
     <p class="ipucu-yazi bos-sohbet" id="bos-sohbet" {% if mesaj_listesi %}hidden{% endif %}>Henüz mesaj yok. İlk mesajı sen yaz!</p>
 
     {% if yazabilir %}
-    <form method="post" action="{{ gonder_adresi }}" class="mesaj-formu" id="yaz">
+    <form method="post" action="{{ gonder_adresi }}" class="mesaj-formu" id="yaz" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      {% if resim_izni %}
+      <!-- Resim ekle: dosya seçme kutusu gizli, 📷 etiketine tıklayınca açılır -->
+      <label class="resim-sec" title="Resim ekle (JPG, PNG, WebP; en fazla 6 MB)">📷<span class="gizli">Resim ekle</span>
+        <input type="file" name="resim" accept="image/jpeg,image/png,image/webp,image/gif" class="gizli" id="resim-dosyasi"></label>
+      {% endif %}
       <label for="metin" class="gizli">Mesajın</label>
-      <textarea id="metin" name="metin" rows="2" maxlength="{{ en_uzun }}" required
+      <textarea id="metin" name="metin" rows="2" maxlength="{{ en_uzun }}"
                 placeholder="Mesajını yaz… (Enter: gönder, Shift+Enter: yeni satır)"></textarea>
       <button type="submit">Gönder</button>
     </form>
+    <p class="ipucu-yazi" id="secilen-resim" hidden></p>
+    {% if sinif or grup %}
+    <!-- Anket oluştur: sohbete yazabilen herkes -->
+    <details class="anket-olustur">
+      <summary>📊 Anket oluştur</summary>
+      <form method="post" action="{{ url_for('anket_yeni') }}" class="kart">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <input type="hidden" name="tur" value="{{ 'sinif' if sinif else 'grup' }}">
+        <input type="hidden" name="id" value="{{ sinif.id if sinif else grup.id }}">
+        <label for="anket-soru">Soru</label>
+        <input type="text" id="anket-soru" name="soru" maxlength="200" required placeholder="Örnek: Toplantı hangi gün olsun?">
+        <fieldset class="uye-secimi">
+          <legend>Seçenekler <span class="istege-bagli">(en az 2, en fazla 6; boş bırakılanlar sayılmaz)</span></legend>
+          {% for i in range(6) %}
+          <label for="secenek-{{ i }}" class="gizli">Seçenek {{ i + 1 }}</label>
+          <input type="text" id="secenek-{{ i }}" name="secenek" maxlength="80" {% if i < 2 %}required{% endif %} placeholder="Seçenek {{ i + 1 }}">
+          {% endfor %}
+        </fieldset>
+        <label class="onay-kutusu"><input type="checkbox" name="coklu" value="1"> Birden çok seçenek seçilebilsin</label>
+        <label for="anket-bitis">Son gün <span class="istege-bagli">(isteğe bağlı)</span></label>
+        <input type="date" id="anket-bitis" name="bitis">
+        <button type="submit" class="ikincil">Anketi paylaş</button>
+      </form>
+    </details>
+    {% endif %}
     <p class="ipucu-yazi">Saygılı ol; öğretmenin sınıf ve grup sohbetlerindeki mesajları görebilir ve silebilir.</p>
     {% elif sinif %}
     <p class="bilgi-notu" id="yaz">Öğretmenin bu sohbeti duyuru kanalı yaptı; şu an sadece o yazabiliyor.</p>
@@ -93,8 +132,19 @@
       var bos = document.getElementById("bos-sohbet");
       var saniye = parseInt(liste.dataset.saniye, 10) * 1000;
 
-      // Sayfa açılınca en yeni mesaja kay
+      // Sunucunun yazdığı anketleri çiz, sonra en yeni mesaja kay
+      KodKocAnket.sayfadakileriCiz(liste.dataset.csrf);
       window.scrollTo(0, document.body.scrollHeight);
+
+      // Resim seçilince adını göster
+      var dosya = document.getElementById("resim-dosyasi");
+      var secilen = document.getElementById("secilen-resim");
+      if (dosya) {
+        dosya.addEventListener("change", function () {
+          secilen.hidden = !dosya.files.length;
+          secilen.textContent = dosya.files.length ? "Seçilen resim: " + dosya.files[0].name + " (Gönder'e bas)" : "";
+        });
+      }
 
       // Yeni mesajı listeye ekle. textContent kullanıyoruz (innerHTML değil): mesajdaki
       // <script> gibi yazılar KOD olarak çalışmaz, düz yazı olarak görünür (XSS koruması).
@@ -117,11 +167,29 @@
           ust.appendChild(etiket);
         }
         ust.appendChild(document.createTextNode(" · " + m.zaman));
-        var metin = document.createElement("p");
-        metin.className = "mesaj-metni";
-        metin.textContent = m.silindi ? "Bu mesaj silindi." : m.metin;
         li.appendChild(ust);
-        li.appendChild(metin);
+        if (m.anket) {
+          var kutu = document.createElement("div");
+          li.appendChild(kutu);
+          KodKocAnket.ciz(kutu, m.anket, liste.dataset.csrf);
+        } else if (m.silindi || m.metin) {
+          var metin = document.createElement("p");
+          metin.className = "mesaj-metni";
+          metin.textContent = m.silindi ? "Bu mesaj silindi." : m.metin;
+          li.appendChild(metin);
+        }
+        if (m.resim) {
+          var bag = document.createElement("a");
+          bag.href = m.resim;
+          bag.target = "_blank";
+          bag.rel = "noopener";
+          var resim = document.createElement("img");
+          resim.className = "mesaj-resmi";
+          resim.src = m.resim;
+          resim.alt = m.gonderen + " bir resim paylaştı";
+          bag.appendChild(resim);
+          li.appendChild(bag);
+        }
         liste.appendChild(li);
         bos.hidden = true;
       }
@@ -146,7 +214,7 @@
       var kutu = document.getElementById("metin");
       if (kutu) {
         kutu.addEventListener("keydown", function (o) {
-          if (o.key === "Enter" && !o.shiftKey && kutu.value.trim()) {
+          if (o.key === "Enter" && !o.shiftKey && (kutu.value.trim() || (dosya && dosya.files.length))) {
             o.preventDefault();
             kutu.form.submit();
           }

@@ -24,29 +24,57 @@
           <a href="{{ url_for('profil_goster', kullanici_id=u.id) }}">{{ u.kullanici_adi }}</a>
           {% if u.id == grup.olusturan_id %}<span class="ogretmen-etiketi">Yönetici</span>{% endif %}
           {% if yonetebilir and u.id != g.kullanici.id %}
-          <form method="post" action="{{ url_for('grup_uye_cikar', grup_id=grup.id) }}"
-                onsubmit="return confirm('Bu kişi gruptan çıkarılsın mı?');">
+          <span class="uye-islemleri">
+            {% if u.id != grup.olusturan_id %}
+            <form method="post" action="{{ url_for('grup_yonetici_yap', grup_id=grup.id) }}"
+                  onsubmit="return confirm('Yöneticilik bu kişiye devredilsin mi? Sen artık yönetici olmayacaksın.');">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <input type="hidden" name="uye" value="{{ u.id }}">
+              <button type="submit" class="isaret">Yönetici yap</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('grup_uye_cikar', grup_id=grup.id) }}"
+                  onsubmit="return confirm('Bu kişi gruptan çıkarılsın mı?');">
+              <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+              <input type="hidden" name="uye" value="{{ u.id }}">
+              <button type="submit" class="isaret">Çıkar</button>
+            </form>
+          </span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if davetliler %}
+      <!-- Daveti henüz cevaplamamış kişiler -->
+      <p class="ipucu-etiket">Davet bekleyenler ({{ davetliler | length }})</p>
+      <ul class="kisi-listesi">
+        {% for d in davetliler %}
+        <li>
+          {{ d.kullanici_adi }} <span class="gecmis-durum">· cevap bekleniyor</span>
+          {% if yonetebilir %}
+          <form method="post" action="{{ url_for('grup_davet_iptal', grup_id=grup.id) }}">
             <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
-            <input type="hidden" name="uye" value="{{ u.id }}">
-            <button type="submit" class="isaret">Çıkar</button>
+            <input type="hidden" name="kisi" value="{{ d.id }}">
+            <button type="submit" class="isaret">Daveti geri çek</button>
           </form>
           {% endif %}
         </li>
         {% endfor %}
       </ul>
+      {% endif %}
       {% if yonetebilir %}
       {% if eklenebilecekler %}
       <details>
-        <summary>Kişi ekle</summary>
-        <form method="post" action="{{ url_for('grup_uye_ekle', grup_id=grup.id) }}">
+        <summary>Kişi davet et</summary>
+        <form method="post" action="{{ url_for('grup_davet_et', grup_id=grup.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
           <fieldset class="uye-secimi">
-            <legend class="gizli">Eklenecek kişiler</legend>
+            <legend class="gizli">Davet edilecek kişiler</legend>
             {% for k in eklenebilecekler %}
             <label class="onay-kutusu"><input type="checkbox" name="uye" value="{{ k.id }}"> {{ k.kullanici_adi }}</label>
             {% endfor %}
           </fieldset>
-          <button type="submit" class="ikincil">Ekle</button>
+          <button type="submit" class="ikincil">Davet gönder</button>
         </form>
       </details>
       {% endif %}

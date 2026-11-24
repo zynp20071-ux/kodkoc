@@ -7,7 +7,7 @@
     <p class="etiket"><a href="{{ url_for('mesajlar') }}" class="geri-baglanti">← Mesajlar</a></p>
     <h1>Yeni grup kur</h1>
     <p class="aciklama">Sınıf arkadaşlarınla kendi sohbet grubunu kur: proje ekibi, çalışma grubu, soru-cevap…
-      Grubu kuran kişi yöneticidir; kişi ekleyip çıkarabilir.</p>
+      Seçtiğin kişilere davet gider; kabul edenler gruba katılır. Grubu kuran kişi yöneticidir.</p>
 
     {% if not siniflar %}
     <p class="bilgi-notu">Grup kurabileceğin bir sınıf yok.
@@ -34,12 +34,12 @@
              placeholder="Örnek: Oyun projesi ekibi">
       {% if kisiler %}
       <fieldset class="uye-secimi">
-        <legend>Kimler olsun?</legend>
+        <legend>Kimleri davet edelim?</legend>
         {% for k in kisiler %}
         <label class="onay-kutusu"><input type="checkbox" name="uye" value="{{ k.id }}" {% if k.id in secili %}checked{% endif %}> {{ k.kullanici_adi }}</label>
         {% endfor %}
       </fieldset>
-      <button type="submit">Grubu kur</button>
+      <button type="submit">Grubu kur ve davet gönder</button>
       {% else %}
       <p class="bilgi-notu">Bu sınıfta gruba ekleyebileceğin kimse yok.</p>
       {% endif %}

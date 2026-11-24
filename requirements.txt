@@ -2,6 +2,8 @@ google-genai
 python-dotenv
 flask
 markdown
+# Sohbette paylasilan resimleri kucultmek icin
+Pillow
 # Canli sunucuda Flask'i calistiran program (Windows'ta calismaz, gerek de yok)
 gunicorn; sys_platform != "win32"
 # PostgreSQL baglantisi (sadece DATABASE_URL ayarliysa kullanilir)

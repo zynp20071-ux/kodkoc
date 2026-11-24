@@ -13,6 +13,7 @@ UYARI: Yedekte şifre özetleri, mesajlar ve notlar var. Dosyayı kimseyle payla
 GitHub'a yükleme (yedekler/ klasörü .gitignore'da).
 """
 
+import base64
 import json
 import os
 import sys
@@ -23,9 +24,23 @@ import veritabani
 # Geri yüklerken sıra önemli: bir tablo, bağlı olduğu tablodan SONRA eklenmeli.
 SIRA = ["kullanicilar", "siniflar", "sinif_uyeleri", "yol_haritalari", "adimlar", "ipuclari", "commitler",
         "ogretmen_yorumlari", "kod_incelemeleri", "koc_sorulari", "duyurular", "yz_kullanimi",
-        "giris_denemeleri", "ogretmen_sorulari", "mesajlar", "sohbet_okuma", "engellemeler", "quizler",
-        "odevler", "teslimler", "gruplar", "grup_uyeleri", "gorevler", "grup_okuma", "sablonlar",
-        "sifre_sifirlama", "sikayetler"]
+        "giris_denemeleri", "ogretmen_sorulari", "resimler", "anketler", "anket_secenekleri", "mesajlar",
+        "anket_oylari", "sohbet_okuma", "engellemeler", "quizler", "odevler", "teslimler", "gruplar",
+        "grup_uyeleri", "grup_davetleri", "gorevler", "grup_okuma", "sablonlar", "sifre_sifirlama", "sikayetler"]
+
+
+def _json_icin(deger):
+    """JSON'un bilmediği değerler: resimler (bayt) base64 metnine çevrilip işaretlenir, gerisi metin olur."""
+    if isinstance(deger, (bytes, bytearray, memoryview)):
+        return {"__bayt__": base64.b64encode(bytes(deger)).decode("ascii")}
+    return str(deger)
+
+
+def _jsondan(deger):
+    """_json_icin'in tersi: işaretli base64 metnini yeniden bayta çevirir."""
+    if isinstance(deger, dict) and "__bayt__" in deger:
+        return base64.b64decode(deger["__bayt__"])
+    return deger
 
 
 def yedek_al(klasor="yedekler"):
@@ -36,7 +51,7 @@ def yedek_al(klasor="yedekler"):
     os.makedirs(klasor, exist_ok=True)
     yol = os.path.join(klasor, f"kodkoc-{datetime.now():%Y-%m-%d-%H%M%S}.json")
     with open(yol, "w", encoding="utf-8") as dosya:
-        json.dump(veri, dosya, ensure_ascii=False, indent=1, default=str)
+        json.dump(veri, dosya, ensure_ascii=False, indent=1, default=_json_icin)
     return yol
 
 
@@ -56,7 +71,7 @@ def geri_yukle(yol):
                 sutunlar = list(satirlar[0])
                 yer = ", ".join("?" * len(sutunlar))
                 baglanti.executemany(f"INSERT INTO {tablo} ({', '.join(sutunlar)}) VALUES ({yer})",
-                                     [tuple(s[c] for c in sutunlar) for s in satirlar])
+                                     [tuple(_jsondan(s[c]) for c in sutunlar) for s in satirlar])
             sayilar[tablo] = len(satirlar)
         if veritabani.POSTGRES:
             # id sayaçlarını en büyük id'ye getir (tasima.py'deki gibi)

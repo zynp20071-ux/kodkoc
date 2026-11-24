@@ -113,6 +113,7 @@ Yazılıma yeni başlayanlara **kodu yazmadan** yol gösteren yapay zekâ koçu.
 | `templates/grup.html` | Grup sayfası: görev panosu; sohbet grubunda üyeler ve yönetim |
 | `templates/grup_yeni.html` | Sohbet grubu kurma (sınıf arkadaşlarıyla) |
 | `static/mesaj_paneli.js` | Her sayfanın sağ altındaki mesaj paneli (sayfadan çıkmadan yazışma) |
+| `static/anket.js` | Sohbetteki anket kartı: seçenekler, oy verme, sonuç çubukları |
 | `templates/takvim.html`, `templates/sablonlar.html`, `templates/sablon.html` | Takvim ve öğretmenin proje şablonları |
 | `static/manifest.webmanifest`, `static/sw.js`, `static/ikon-*.png` | Telefona yüklenebilir uygulama (PWA) |
 | `yedek_al.py` | Veritabanı yedeği alma ve geri yükleme |
@@ -207,4 +208,5 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Proje şablonları, takvim, katılım takibi
 - [x] 9. hafta: Telefona yüklenebilir uygulama (PWA), tarayıcı bildirimleri, e-postayla şifre sıfırlama, yedek
 - [x] 10. hafta: Her sayfadan açılan mesaj paneli, kullanıcıların kendi kurduğu sohbet grupları
-- [ ] Sesli-görüntülü görüşme, profil fotoğrafı
+- [x] 10. hafta: Grup davetleri (kabul/ret) ve yönetici devri, sohbette anket, resim paylaşma
+- [ ] Sesli-görüntülü görüşme

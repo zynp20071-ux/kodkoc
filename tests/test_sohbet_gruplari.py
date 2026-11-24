@@ -40,11 +40,18 @@ def kid(k):
     return k.kullanici["id"]
 
 
-def grup_kur(k, sinif_id, uyeler, ad="Oyun ekibi"):
-    """Grubu kurar, grubun id'sini döndürür (kurulamadıysa None)."""
+def grup_kur(k, sinif_id, uyeler, ad="Oyun ekibi", kabul=True):
+    """
+    Grubu kurar, grubun id'sini döndürür (kurulamadıysa None).
+    Seçilenlere davet gider; kabul=True ise hepsi daveti kabul eder (davet almayanınki 404 olur, önemsiz).
+    """
     cevap = k.post("/grup/yeni", data={"sinif": sinif_id, "ad": ad, "uye": [str(kid(u)) for u in uyeler]})
     m = re.match(r"/grup/(\d+)/sohbet", cevap.headers.get("Location", ""))
-    return int(m.group(1)) if m else None
+    grup_id = int(m.group(1)) if m else None
+    if grup_id and kabul:
+        for u in uyeler:
+            u.post(f"/davet/{grup_id}/kabul")
+    return grup_id
 
 
 def grup_sayisi():
@@ -131,12 +138,14 @@ def test_yonetici_kisi_ekler_cikarir_ad_degistirir(okul):
     ali, ayse, can = okul["ali"], okul["ayse"], okul["can"]
     grup_id = grup_kur(ali, okul["a"], [ayse])
     # Üye (yönetici olmayan) yönetemez
-    assert ayse.post(f"/grup/{grup_id}/uye-ekle", data={"uye": [str(kid(can))]}).status_code == 404
+    assert ayse.post(f"/grup/{grup_id}/davet", data={"uye": [str(kid(can))]}).status_code == 404
     assert ayse.post(f"/grup/{grup_id}/ad", data={"ad": "Benim"}).status_code == 404
     assert ayse.post(f"/grup/{grup_id}/cikar", data={"uye": kid(ali)}).status_code == 404
     assert ayse.post(f"/ogretmen/grup/{grup_id}/sil").status_code == 404
 
-    ali.post(f"/grup/{grup_id}/uye-ekle", data={"uye": [str(kid(can)), str(kid(okul["veli"]))]})
+    ali.post(f"/grup/{grup_id}/davet", data={"uye": [str(kid(can)), str(kid(okul["veli"]))]})
+    assert veritabani.davet_getir(grup_id, kid(okul["veli"])) is None      # Başka sınıftan davet edilemez
+    can.post(f"/davet/{grup_id}/kabul")
     adlar = {u["kullanici_adi"] for u in veritabani.grup_uyeleri_listesi(grup_id)}
     assert "can" in adlar and "veli" not in adlar
     ali.post(f"/grup/{grup_id}/ad", data={"ad": "Yeni ad"})
@@ -186,7 +195,7 @@ def test_proje_grubu_sohbet_grubu_islemleriyle_degismez(okul):
     cevap = hoca.post(f"/ogretmen/sinif/{okul['a']}/grup", data={"ad": "Proje", "uye": [str(kid(ali))]})
     grup_id = int(cevap.headers["Location"].rsplit("/", 1)[1])
     assert ali.post(f"/grup/{grup_id}/ayril").status_code == 404
-    assert hoca.post(f"/grup/{grup_id}/uye-ekle", data={"uye": [str(kid(okul["can"]))]}).status_code == 404
+    assert hoca.post(f"/grup/{grup_id}/davet", data={"uye": [str(kid(okul["can"]))]}).status_code == 404
     assert ali.post(f"/ogretmen/grup/{grup_id}/sil").status_code == 404
 
 

@@ -120,6 +120,10 @@
       navigator.serviceWorker.register("/sw.js").catch(function () {});
     }
   </script>
+  {% if g.kullanici %}
+  <!-- Anket kartını çizen betik (sohbet sayfaları ve mesaj paneli kullanır) -->
+  <script src="{{ url_for('static', filename='anket.js') }}"></script>
+  {% endif %}
   {% if g.kullanici and request.endpoint not in ('mesajlar', 'sinif_sohbeti', 'ozel_sohbet', 'grup_sohbeti', 'sinif_raporu') %}
   <!-- Mesaj paneli (10. hafta): her sayfadan sohbetlere ulaşmak için sağ alttaki düğme ve küçük pencere.
        Sohbet sayfalarında (orada zaten sohbet açık) ve yazdırılan raporda gösterilmez. Betik: static/mesaj_paneli.js -->
@@ -140,6 +144,8 @@
       <p class="ipucu-yazi" id="panel-not" aria-live="polite"></p>
     </div>
     <form id="panel-form" class="panel-form" hidden>
+      <label class="resim-sec" id="panel-resim-sec" title="Resim ekle" hidden>📷<span class="gizli">Resim ekle</span>
+        <input type="file" id="panel-resim" accept="image/jpeg,image/png,image/webp,image/gif" class="gizli"></label>
       <label for="panel-metin" class="gizli">Mesajın</label>
       <textarea id="panel-metin" rows="2" maxlength="{{ EN_UZUN_MESAJ }}" placeholder="Mesajını yaz… (Enter: gönder)"></textarea>
       <button type="submit">Gönder</button>

@@ -28,6 +28,9 @@
         <li>
           <strong>{{ s.gonderen_adi }}</strong> · {{ (s.grup_adi ~ ' grubu') if s.grup_adi else (s.sinif_adi ~ ' sohbeti' if s.sinif_adi else 'özel mesaj') }} · {{ s.mesaj_zamani | tarih }}
           <p class="bekleyen-soru-metni">{{ 'Bu mesaj silinmiş.' if s.silindi else s.metin }}</p>
+          {% if s.resim_id and not s.silindi %}
+          <a href="{{ url_for('resim_goster', resim_id=s.resim_id) }}" target="_blank" rel="noopener"><img class="mesaj-resmi" src="{{ url_for('resim_goster', resim_id=s.resim_id) }}" alt="Bildirilen resim" loading="lazy"></a>
+          {% endif %}
           <span class="gecmis-durum">Bildiren: {{ s.bildiren_adi }} · {{ sebepler.get(s.sebep, s.sebep) }} · {{ s.zaman | tarih }}</span>
           <div class="satir">
             {% if not s.silindi %}

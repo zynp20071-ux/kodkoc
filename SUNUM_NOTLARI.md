@@ -603,3 +603,35 @@ WebSocket'te sunucu yeni mesajı kendisi gönderir, daha anlık olur. Ama ücret
 - [ ] Bir tabloya tür sütunu ekleyip aynı altyapıyı iki iş için kullanmak
 - [ ] Sahipliği devretmek (yönetici ayrılınca)
 
+### 10. hafta (devamı): Davetler, anketler, resimler
+
+| Özellik | Dosya / fonksiyon |
+|---|---|
+| Grup daveti, kabul / ret | `app.py` → `grup_davet_et()`, `davet_cevapla()`, `grup_davet_iptal()`; tablo `grup_davetleri` |
+| Yöneticiliği devretmek | `app.py` → `grup_yonetici_yap()` |
+| Anket açma, oy, bitirme | `app.py` → `anket_yeni()`, `anket_oy()`, `anket_kapat()`; tablolar `anketler`, `anket_secenekleri`, `anket_oylari` |
+| Anket kartını çizmek | `static/anket.js` (sohbet sayfası ve panel aynı kodu kullanır) |
+| Resim yükleme ve küçültme | `app.py` → `mesaj_gonder()`, `resmi_kucult()` (Pillow); tablo `resimler` |
+| Resmi gösterme (yetkiyle) | `app.py` → `resim_goster()`, `mesaji_gorebilir_mi()` |
+| Silinen mesajın anketi / resmi | `veritabani._sahipsizleri_temizle()` |
+| Testler | `tests/test_davet_anket_resim.py` (19 test) |
+
+**Neden doğrudan eklemek yerine davet?**
+Kimse istemediği bir gruba sokulmasın. Özellikle çocuklarda zorbalığın bir yolu, birini istemediği bir gruba ekleyip orada rahatsız etmek. Davet gelir, kişi kabul ederse üye olur. Engelleme olursa bekleyen davet de silinir.
+
+**Resimler neden veritabanında, dosya olarak değil?**
+Ücretsiz Render'da diske yazılan dosyalar sunucu her yeniden başladığında siliniyor. Resmi veritabanına yazınca kalıcı oluyor. Neon'un ücretsiz alanı sınırlı (0,5 GB) olduğu için her resim en fazla 1280 piksele küçültülüyor ve en fazla 300 KB'lık JPEG yapılıyor. Kişi başına günde 20, toplam 150 resim sınırı var.
+
+**Resimde güvenlik ve gizlilik?**
+- Dosyanın adına değil içeriğine bakılıyor: "resim.png" adlı bir program Pillow'da açılamaz ve reddedilir (testi var).
+- Resim yeniden JPEG olarak kaydedildiği için içindeki EXIF bilgileri (konum, telefon modeli) siliniyor (testi var).
+- "Sıkıştırma bombası" koruması: çok büyük piksel sayısı reddediliyor; istek en fazla 6 MB (`MAX_CONTENT_LENGTH`).
+- Resmi sadece o mesajı görebilen açabiliyor (`/resim/<id>` her istekte yetki kontrol ediyor).
+- Öğrenciler arası özel mesajda resim yok, çünkü öğretmen o sohbetleri göremiyor; uygunsuz bir resmi fark edemezdi.
+
+**Anket nasıl mesajlaşmaya bağlandı?**
+Anket ayrı tablolarda; sohbette ise `mesajlar.anket_id` dolu bir mesaj olarak görünüyor. Böylece sıralama, okunmamış sayısı, silme ve bildirme yeniden yazılmadı. Oylar adsız: sadece sayılar gösteriliyor. Oy değiştirilebiliyor. Tek seçimli ankette birden çok seçenek gönderilse bile sunucu sadece ilkini sayıyor (testi var).
+
+**Mesaj silinince anketi ve resmi ne oluyor?**
+`_sahipsizleri_temizle()` hiçbir mesajın göstermediği anketleri ve resimleri siliyor. Mesaj, grup, sınıf ya da hesap silinince çağrılıyor; böylece her silme kodunda ayrı ayrı düşünmek gerekmiyor.
+

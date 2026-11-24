@@ -27,6 +27,8 @@
   var geri = document.getElementById("panel-geri");
   var tamEkran = document.getElementById("panel-tam");
   var saniye = parseInt(panel.dataset.saniye, 10) * 1000 || 5000;
+  var resimSec = document.getElementById("panel-resim-sec");
+  var resimDosyasi = document.getElementById("panel-resim");
 
   var acikSohbet = null;      // {tur, id, ad, sayfa}
   var sonId = 0;
@@ -81,6 +83,23 @@
         if (!veri.sohbetler.length && !veri.yeni_kisiler.length) {
           liste.appendChild(yeni("p", "ipucu-yazi", "Henüz bir sohbetin yok. Bir sınıfa katılınca burada görünür."));
         }
+        if (veri.davetler.length) {
+          liste.appendChild(yeni("p", "ipucu-etiket", "Grup davetlerin"));
+          var davetler = yeni("ul", "panel-listesi");
+          veri.davetler.forEach(function (d) {
+            var li = yeni("li", "panel-davet");
+            li.appendChild(yeni("span", "", d.davet_eden + " seni “" + d.grup + "” grubuna davet etti (" + d.sinif + ")"));
+            var kabul = yeni("button", "kucuk-dugme", "Kabul et");
+            var ret = yeni("button", "isaret", "Reddet");
+            kabul.type = ret.type = "button";
+            kabul.addEventListener("click", function () { davetiCevapla(d.grup_id, "kabul", d.grup); });
+            ret.addEventListener("click", function () { davetiCevapla(d.grup_id, "reddet"); });
+            li.appendChild(kabul);
+            li.appendChild(ret);
+            davetler.appendChild(li);
+          });
+          liste.appendChild(davetler);
+        }
         var ul = yeni("ul", "panel-listesi");
         veri.sohbetler.forEach(function (s) {
           var li = yeni("li");
@@ -124,6 +143,20 @@
       .catch(function () {});
   }
 
+  function davetiCevapla(grupId, islem, grupAdi) {
+    var veri = new FormData();
+    veri.append("csrf", panel.dataset.csrf);
+    veri.append("json", "1");
+    fetch("/davet/" + grupId + "/" + islem, {method: "POST", body: veri, credentials: "same-origin"})
+      .then(function (c) { return c.json(); })
+      .then(function (cevap) {
+        if (cevap.hata) { alert(cevap.hata); listeyiYukle(); return; }
+        if (islem === "kabul") sohbetiAc({tur: "grup", id: grupId, ad: grupAdi, sayfa: cevap.adres}, true);
+        else listeyiYukle();
+      })
+      .catch(function () {});
+  }
+
   // --- Bir sohbet ---
   function mesajiEkle(m) {
     if (document.getElementById("panel-mesaj-" + m.id)) return;
@@ -139,7 +172,30 @@
     }
     ust.appendChild(document.createTextNode(" · " + m.zaman));
     li.appendChild(ust);
-    li.appendChild(yeni("p", "mesaj-metni", m.silindi ? "Bu mesaj silindi." : m.metin));
+    if (m.anket && window.KodKocAnket) {
+      var kutu = yeni("div");
+      li.appendChild(kutu);
+      KodKocAnket.ciz(kutu, m.anket, panel.dataset.csrf);
+    } else if (m.silindi || m.metin) {
+      li.appendChild(yeni("p", "mesaj-metni", m.silindi ? "Bu mesaj silindi." : m.metin));
+    }
+    if (m.resim) {
+      var bag = yeni("a");
+      bag.href = m.resim;
+      bag.target = "_blank";
+      bag.rel = "noopener";
+      var resim = yeni("img", "mesaj-resmi");
+      resim.src = m.resim;
+      resim.alt = m.gonderen + " bir resim paylaştı";
+      resim.addEventListener("load", function () {
+        // Resim yüklenince boyu değişir; en alttaysak yine en alta kay
+        if (sohbetAlani.scrollHeight - sohbetAlani.scrollTop - sohbetAlani.clientHeight < 400) {
+          sohbetAlani.scrollTop = sohbetAlani.scrollHeight;
+        }
+      });
+      bag.appendChild(resim);
+      li.appendChild(bag);
+    }
     mesajlar.appendChild(li);
   }
 
@@ -158,6 +214,8 @@
         veri.mesajlar.forEach(function (m) { mesajiEkle(m); sonId = m.id; });
         if (ilk) {
           form.hidden = !veri.yazabilir;
+          resimSec.hidden = !veri.resim_izni;
+          resimDosyasi.value = "";
           bilgi.textContent = veri.yazabilir ? (veri.mesajlar.length ? "" : "Henüz mesaj yok. İlk mesajı sen yaz!")
                                              : veri.sebep;
           if (veri.yazabilir && odakIste) kutu.focus();
@@ -190,12 +248,14 @@
   form.addEventListener("submit", function (olay) {
     olay.preventDefault();
     var metin = kutu.value.trim();
-    if (!metin || !acikSohbet) return;
+    var dosya = resimSec.hidden ? null : resimDosyasi.files[0];
+    if ((!metin && !dosya) || !acikSohbet) return;
     var veri = new FormData();
     veri.append("csrf", panel.dataset.csrf);
     veri.append("tur", acikSohbet.tur);
     veri.append("id", acikSohbet.id);
     veri.append("metin", metin);
+    if (dosya) veri.append("resim", dosya);
     var gonderDugmesi = form.querySelector("button");
     gonderDugmesi.disabled = true;
     fetch("/sohbet/gonder", {method: "POST", body: veri, credentials: "same-origin"})
@@ -205,12 +265,17 @@
           bilgi.textContent = cevap.hata;
         } else {
           kutu.value = "";
+          resimDosyasi.value = "";
           bilgi.textContent = "";
           yokla(false);
         }
       })
       .catch(function () { bilgi.textContent = "İnternet bağlantını kontrol et."; })
       .then(function () { gonderDugmesi.disabled = false; kutu.focus(); });
+  });
+
+  resimDosyasi.addEventListener("change", function () {
+    bilgi.textContent = resimDosyasi.files.length ? "Seçilen resim: " + resimDosyasi.files[0].name + " (Gönder'e bas)" : "";
   });
 
   // Enter: gönder, Shift+Enter: yeni satır
