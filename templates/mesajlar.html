@@ -4,8 +4,12 @@
 {% block baslik %}Mesajlar · KodKoç{% endblock %}
 
 {% block icerik %}
-    <h1>Mesajlar</h1>
-    <p class="aciklama">Sınıfınla grup halinde ya da sınıfındaki biriyle özel olarak yazış.</p>
+    <div class="sohbet-ust">
+      <h1>Mesajlar</h1>
+      {% if grup_kurabilir %}<a class="dugme-link" href="{{ url_for('grup_yeni') }}">+ Yeni grup kur</a>{% endif %}
+    </div>
+    <p class="aciklama">Sınıfınla, kendi kurduğun gruplarla ya da sınıfındaki biriyle özel olarak yazış.
+      Sağ alttaki <strong>Mesajlar</strong> düğmesiyle her sayfadan da yazışabilirsin.</p>
 
     <h2 class="ara-baslik">Sınıf sohbetleri</h2>
     {% if siniflar %}
@@ -35,7 +39,7 @@
       {% for gr in gruplar %}
       <li>
         <a class="sohbet-ogesi" href="{{ url_for('grup_sohbeti', grup_id=gr.id) }}">
-          <span class="sohbet-adi">{{ gr.ad }} <span class="gecmis-durum">· {{ gr.sinif_adi }}</span></span>
+          <span class="sohbet-adi">{{ gr.ad }} <span class="gecmis-durum">· {{ 'Sohbet grubu' if gr.olusturan_id else 'Proje grubu' }} · {{ gr.sinif_adi }}</span></span>
           {% if gr.okunmamis %}<span class="menu-rozeti" title="{{ gr.okunmamis }} okunmamış mesaj">{{ gr.okunmamis }}</span>{% endif %}
           <span class="sohbet-son">
             {% if gr.son_zaman %}{{ gr.son_gonderen }}: {{ 'Bu mesaj silindi' if gr.son_silindi else gr.son_metin | truncate(70) }} · {{ gr.son_zaman | tarih }}

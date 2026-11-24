@@ -634,6 +634,9 @@ def hazirla():
         """)
         # Grup sohbetindeki mesajlarda grup_id dolu olur (sinif_id ve alici_id boş)
         sutun_yoksa_ekle(baglanti, "mesajlar", "grup_id", "INTEGER")
+        # Sohbet grupları: kullanıcının kendi kurduğu grup. olusturan_id = grubu kuran (yöneticisi).
+        # Boşsa (NULL) öğretmenin sınıfta kurduğu proje grubudur.
+        sutun_yoksa_ekle(baglanti, "gruplar", "olusturan_id", "INTEGER")
         baglanti.execute("CREATE INDEX IF NOT EXISTS mesaj_grup ON mesajlar (grup_id, id)")
         # Proje şablonları: öğretmenin kendi yazdığı adımlar (yapay zekâ yerine). adimlar: düz metin;
         # her adım boş bir satırla ayrılır, ilk satır başlık, kalanı açıklama.
@@ -1264,6 +1267,7 @@ def siniftan_ayril(ogrenci_id, sinif_id):
     try:
         baglanti.execute("""DELETE FROM grup_uyeleri WHERE ogrenci_id = ?
                             AND grup_id IN (SELECT id FROM gruplar WHERE sinif_id = ?)""", (ogrenci_id, sinif_id))
+        _yoneticiligi_devret(baglanti, ogrenci_id, sinif_id)    # Kurduğu sohbet grupları başkasına geçer
         baglanti.commit()
     finally:
         baglanti.close()
@@ -2240,6 +2244,7 @@ def hesap_sil(kullanici_id, sifre):
             baglanti.execute(f"DELETE FROM {tablo} WHERE grup_id IN ({gruplari})", {"k": kullanici_id})
         baglanti.execute(f"DELETE FROM gruplar WHERE sinif_id IN ({siniflari})", {"k": kullanici_id})
         baglanti.execute("DELETE FROM grup_uyeleri WHERE ogrenci_id = :k", {"k": kullanici_id})
+        _yoneticiligi_devret(baglanti, kullanici_id)        # Kurduğu sohbet grupları başkasına geçer
         baglanti.execute("DELETE FROM grup_okuma WHERE kullanici_id = :k", {"k": kullanici_id})
         baglanti.execute("UPDATE gorevler SET atanan_id = NULL WHERE atanan_id = :k", {"k": kullanici_id})
         baglanti.execute("UPDATE gorevler SET olusturan_id = NULL WHERE olusturan_id = :k", {"k": kullanici_id})
@@ -2919,9 +2924,11 @@ _OKUNMAMIS_KISI = """(SELECT COUNT(*) FROM mesajlar x
 
 
 # Kullanıcının görebildiği gruplar: üyesi olduğu ya da öğretmeni olduğu sınıftaki gruplar
+# (Öğretmen: kendi sınıflarının proje grupları ve kendi kurduğu sohbet grupları. Öğrencilerin kurduğu
+#  sohbet grupları öğretmenin mesaj listesine girmez; öğretmen onları sınıf sayfasından açıp bakabilir.)
 _GRUPLARI = """(SELECT grup_id FROM grup_uyeleri WHERE ogrenci_id = :k
                 UNION SELECT gr2.id FROM gruplar gr2 JOIN siniflar s2 ON s2.id = gr2.sinif_id
-                      WHERE s2.ogretmen_id = :k)"""
+                      WHERE s2.ogretmen_id = :k AND (gr2.olusturan_id IS NULL OR gr2.olusturan_id = :k))"""
 _OKUNMAMIS_GRUP = """(SELECT COUNT(*) FROM mesajlar x
                        WHERE x.grup_id = {grup} AND x.gonderen_id <> :k AND x.silindi = 0
                          AND x.gonderen_id NOT IN (SELECT e.engellenen_id FROM engellemeler e
@@ -2961,7 +2968,7 @@ def sohbet_listesi(kullanici_id):
     baglanti = baglan()
     try:
         siniflar = baglanti.execute(f"""
-            SELECT s.id, s.ad, s.sohbet_kilitli,
+            SELECT s.id, s.ad, s.sohbet_kilitli, m.id AS son_id,
                    m.metin AS son_metin, m.zaman AS son_zaman, m.silindi AS son_silindi,
                    k.kullanici_adi AS son_gonderen,
                    {_OKUNMAMIS_SINIF.format(sinif='s.id')} AS okunmamis
@@ -2973,7 +2980,7 @@ def sohbet_listesi(kullanici_id):
         """, {"k": kullanici_id}).fetchall()
         # Her özel sohbetin "öteki kişisi" ve son mesajının id'si (CASE: ben gönderdiysem alıcı, değilse gönderen)
         kisiler = baglanti.execute(f"""
-            SELECT t.diger_id, k.kullanici_adi, k.rol, m.metin AS son_metin, m.zaman AS son_zaman,
+            SELECT t.diger_id, t.son_id, k.kullanici_adi, k.rol, m.metin AS son_metin, m.zaman AS son_zaman,
                    m.silindi AS son_silindi, m.gonderen_id AS son_gonderen_id,
                    {_OKUNMAMIS_KISI.format(kisi='t.diger_id')} AS okunmamis
             FROM (SELECT diger_id, MAX(id) AS son_id FROM (
@@ -2985,7 +2992,7 @@ def sohbet_listesi(kullanici_id):
             ORDER BY t.son_id DESC
         """, {"k": kullanici_id}).fetchall()
         gruplar = baglanti.execute(f"""
-            SELECT gr.id, gr.ad, s.ad AS sinif_adi,
+            SELECT gr.id, gr.ad, s.ad AS sinif_adi, gr.olusturan_id, m.id AS son_id,
                    m.metin AS son_metin, m.zaman AS son_zaman, m.silindi AS son_silindi,
                    k.kullanici_adi AS son_gonderen,
                    {_OKUNMAMIS_GRUP.format(grup='gr.id')} AS okunmamis
@@ -3410,7 +3417,7 @@ def sinifin_gruplari(sinif_id):
             SELECT gr.id, gr.ad, gr.proje,
                    (SELECT COUNT(*) FROM gorevler g WHERE g.grup_id = gr.id)                      AS gorev_sayisi,
                    (SELECT COUNT(*) FROM gorevler g WHERE g.grup_id = gr.id AND g.durum = 'bitti') AS biten_gorev
-            FROM gruplar gr WHERE gr.sinif_id = ? ORDER BY gr.ad
+            FROM gruplar gr WHERE gr.sinif_id = ? AND gr.olusturan_id IS NULL ORDER BY gr.ad
         """, (sinif_id,)).fetchall()
         uyeler = baglanti.execute("""
             SELECT u.grup_id, k.kullanici_adi FROM grup_uyeleri u JOIN kullanicilar k ON k.id = u.ogrenci_id
@@ -3430,21 +3437,186 @@ def ogrencinin_gruplari(ogrenci_id):
         return baglanti.execute("""
             SELECT gr.id, gr.ad, gr.sinif_id, s.ad AS sinif_adi FROM grup_uyeleri u
             JOIN gruplar gr ON gr.id = u.grup_id JOIN siniflar s ON s.id = gr.sinif_id
-            WHERE u.ogrenci_id = ? ORDER BY gr.ad
+            WHERE u.ogrenci_id = ? AND gr.olusturan_id IS NULL ORDER BY gr.ad
         """, (ogrenci_id,)).fetchall()
     finally:
         baglanti.close()
 
 
+def _grubu_sil(baglanti, grup_id):
+    """Grubu, sohbetini, görevlerini ve bildirimlerini siler (commit'i çağıran yapar)."""
+    baglanti.execute("DELETE FROM sikayetler WHERE mesaj_id IN (SELECT id FROM mesajlar WHERE grup_id = ?)",
+                     (grup_id,))
+    for tablo in ("mesajlar", "gorevler", "grup_uyeleri", "grup_okuma"):
+        baglanti.execute(f"DELETE FROM {tablo} WHERE grup_id = ?", (grup_id,))
+    baglanti.execute("DELETE FROM gruplar WHERE id = ?", (grup_id,))
+
+
 def grup_sil(grup_id):
     baglanti = baglan()
     try:
-        baglanti.execute("DELETE FROM sikayetler WHERE mesaj_id IN (SELECT id FROM mesajlar WHERE grup_id = ?)",
-                         (grup_id,))
-        for tablo in ("mesajlar", "gorevler", "grup_uyeleri", "grup_okuma"):
-            baglanti.execute(f"DELETE FROM {tablo} WHERE grup_id = ?", (grup_id,))
-        baglanti.execute("DELETE FROM gruplar WHERE id = ?", (grup_id,))
+        _grubu_sil(baglanti, grup_id)
         baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def _yoneticiligi_devret(baglanti, kullanici_id, sinif_id=None):
+    """
+    Kullanıcı kurduğu sohbet grubundan çıktıysa (sınıftan ayrıldı ya da hesabını sildi)
+    yöneticilik gruptaki başka bir üyeye geçer; kimse kalmadıysa grup silinir.
+    sinif_id verilirse sadece o sınıftaki gruplara bakılır. (commit'i çağıran yapar)
+    """
+    sorgu = "SELECT id FROM gruplar WHERE olusturan_id = ?"
+    degerler = [kullanici_id]
+    if sinif_id is not None:
+        sorgu += " AND sinif_id = ?"
+        degerler.append(sinif_id)
+    for satir in baglanti.execute(sorgu, degerler).fetchall():
+        yeni = baglanti.execute("""SELECT MIN(ogrenci_id) FROM grup_uyeleri
+                                   WHERE grup_id = ? AND ogrenci_id <> ?""",
+                                (satir["id"], kullanici_id)).fetchone()[0]
+        if yeni is None:
+            _grubu_sil(baglanti, satir["id"])
+        else:
+            baglanti.execute("UPDATE gruplar SET olusturan_id = ? WHERE id = ?", (yeni, satir["id"]))
+
+
+# ---------------------------------------------------------------------------
+# 29b) SOHBET GRUPLARI: kullanıcıların sınıf arkadaşlarıyla kendi kurduğu gruplar
+# ---------------------------------------------------------------------------
+#
+# Kurallar (özel mesajla aynı):
+#   - Grup bir sınıfın içinde kurulur; üyeler o sınıfın öğrencileridir.
+#   - Öğrenci grup kuracaksa, o sınıfta öğretmen öğrenciler arası mesajı açık bırakmış olmalı.
+#   - Engelleme hangi yönde olursa olsun, engelli kişi gruba eklenemez.
+#   - Sınıfın öğretmeni gruptaki mesajları görebilir ve silebilir (çocukların güvenliği için).
+
+def grup_eklenebilecekler(kullanici_id, sinif_id, grup_id=0):
+    """
+    Kullanıcının bu sınıfta gruba ekleyebileceği öğrenciler (ada göre).
+    grup_id verilirse, o grupta zaten olanlar listeye girmez.
+    Öğrenci için sınıfın özel mesaj ayarı kapalıysa liste boştur.
+    """
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT k.id, k.kullanici_adi FROM kullanicilar k
+            JOIN sinif_uyeleri u ON u.ogrenci_id = k.id AND u.sinif_id = :s
+            JOIN siniflar s ON s.id = u.sinif_id
+            WHERE k.id <> :k
+              AND (s.ogretmen_id = :k OR (s.ozel_mesaj = 1 AND EXISTS
+                     (SELECT 1 FROM sinif_uyeleri b WHERE b.sinif_id = :s AND b.ogrenci_id = :k)))
+              AND NOT EXISTS (SELECT 1 FROM engellemeler e
+                              WHERE (e.engelleyen_id = :k AND e.engellenen_id = k.id)
+                                 OR (e.engelleyen_id = k.id AND e.engellenen_id = :k))
+              AND NOT EXISTS (SELECT 1 FROM grup_uyeleri gu WHERE gu.grup_id = :g AND gu.ogrenci_id = k.id)
+            ORDER BY LOWER(k.kullanici_adi)
+        """, {"k": kullanici_id, "s": sinif_id, "g": grup_id}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def grup_kurabilecegi_siniflar(kullanici_id):
+    """Sohbet grubu kurabileceği sınıflar: öğretmeniyse hepsi, öğrenciyse özel mesajı açık olanlar."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT s.id, s.ad FROM siniflar s
+            WHERE s.ogretmen_id = :k
+               OR (s.ozel_mesaj = 1 AND s.id IN (SELECT sinif_id FROM sinif_uyeleri WHERE ogrenci_id = :k))
+            ORDER BY s.ad
+        """, {"k": kullanici_id}).fetchall()
+    finally:
+        baglanti.close()
+
+
+def kurdugu_grup_sayisi(kullanici_id):
+    baglanti = baglan()
+    try:
+        return baglanti.execute("SELECT COUNT(*) FROM gruplar WHERE olusturan_id = ?",
+                                (kullanici_id,)).fetchone()[0]
+    finally:
+        baglanti.close()
+
+
+def sohbet_grubu_kur(olusturan_id, sinif_id, ad, uye_idleri, ogrenci_mi):
+    """
+    Sohbet grubunu kurar, id'sini döndürür. Kuran öğrenciyse kendisi de üye olur.
+    uye_idleri app.py'de grup_eklenebilecekler ile süzülmüş olmalı.
+    """
+    zaman = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    uyeler = set(uye_idleri) | ({olusturan_id} if ogrenci_mi else set())
+    baglanti = baglan()
+    try:
+        grup_id = baglanti.ekle("""INSERT INTO gruplar (sinif_id, ad, olusturma_zamani, olusturan_id)
+                                   VALUES (?, ?, ?, ?)""", (sinif_id, ad, zaman, olusturan_id))
+        for uye_id in sorted(uyeler):
+            baglanti.execute("INSERT INTO grup_uyeleri (grup_id, ogrenci_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                             (grup_id, uye_id))
+        baglanti.commit()
+        return grup_id
+    finally:
+        baglanti.close()
+
+
+def gruba_uye_ekle(grup_id, uye_idleri):
+    baglanti = baglan()
+    try:
+        for uye_id in uye_idleri:
+            baglanti.execute("INSERT INTO grup_uyeleri (grup_id, ogrenci_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                             (grup_id, uye_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def gruptan_cikar(grup_id, ogrenci_id):
+    """
+    Üyeyi gruptan çıkarır (ya da üye kendisi ayrılır). Görev atamaları boşalır.
+    Çıkan kişi yöneticiyse yöneticilik başka üyeye geçer; kimse kalmadıysa grup silinir.
+    """
+    baglanti = baglan()
+    try:
+        baglanti.execute("DELETE FROM grup_uyeleri WHERE grup_id = ? AND ogrenci_id = ?", (grup_id, ogrenci_id))
+        baglanti.execute("DELETE FROM grup_okuma WHERE grup_id = ? AND kullanici_id = ?", (grup_id, ogrenci_id))
+        baglanti.execute("UPDATE gorevler SET atanan_id = NULL WHERE grup_id = ? AND atanan_id = ?",
+                         (grup_id, ogrenci_id))
+        grup = baglanti.execute("SELECT olusturan_id FROM gruplar WHERE id = ?", (grup_id,)).fetchone()
+        if grup and grup["olusturan_id"] == ogrenci_id:
+            yeni = baglanti.execute("SELECT MIN(ogrenci_id) FROM grup_uyeleri WHERE grup_id = ?",
+                                    (grup_id,)).fetchone()[0]
+            if yeni is None:
+                _grubu_sil(baglanti, grup_id)
+            else:
+                baglanti.execute("UPDATE gruplar SET olusturan_id = ? WHERE id = ?", (yeni, grup_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def grup_adini_degistir(grup_id, ad):
+    baglanti = baglan()
+    try:
+        baglanti.execute("UPDATE gruplar SET ad = ? WHERE id = ?", (ad, grup_id))
+        baglanti.commit()
+    finally:
+        baglanti.close()
+
+
+def sinifin_sohbet_gruplari(sinif_id):
+    """Öğretmenin sınıf sayfası için: öğrencilerin kurduğu sohbet grupları, kuranı ve üye sayısı."""
+    baglanti = baglan()
+    try:
+        return baglanti.execute("""
+            SELECT gr.id, gr.ad, k.kullanici_adi AS kuran,
+                   (SELECT COUNT(*) FROM grup_uyeleri u WHERE u.grup_id = gr.id) AS uye_sayisi
+            FROM gruplar gr
+            JOIN siniflar s ON s.id = gr.sinif_id
+            JOIN kullanicilar k ON k.id = gr.olusturan_id
+            WHERE gr.sinif_id = ? AND gr.olusturan_id IS NOT NULL AND gr.olusturan_id <> s.ogretmen_id
+            ORDER BY gr.ad
+        """, (sinif_id,)).fetchall()
     finally:
         baglanti.close()
 

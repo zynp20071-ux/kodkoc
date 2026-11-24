@@ -1,0 +1,51 @@
+{% extends "taban.html" %}
+{# Sohbet grubu kurma: önce sınıf seçilir, sonra o sınıftan kişiler işaretlenir (10. hafta) #}
+
+{% block baslik %}Yeni grup · Mesajlar · KodKoç{% endblock %}
+
+{% block icerik %}
+    <p class="etiket"><a href="{{ url_for('mesajlar') }}" class="geri-baglanti">← Mesajlar</a></p>
+    <h1>Yeni grup kur</h1>
+    <p class="aciklama">Sınıf arkadaşlarınla kendi sohbet grubunu kur: proje ekibi, çalışma grubu, soru-cevap…
+      Grubu kuran kişi yöneticidir; kişi ekleyip çıkarabilir.</p>
+
+    {% if not siniflar %}
+    <p class="bilgi-notu">Grup kurabileceğin bir sınıf yok.
+      {% if g.kullanici.rol == 'ogretmen' %}Önce <a href="{{ url_for('ogretmen_paneli') }}">bir sınıf aç</a>.
+      {% else %}Önce bir sınıfa katılman gerekiyor; ya da öğretmenin bu sınıfta öğrenciler arası mesajı kapatmış olabilir.{% endif %}</p>
+    {% elif not sinif %}
+    <!-- Birden çok sınıf varsa önce hangisinde kurulacağı seçilir -->
+    <section class="kart">
+      <p class="ipucu-etiket">Grup hangi sınıfta olsun?</p>
+      <ul class="kisi-listesi">
+        {% for s in siniflar %}
+        <li>{{ s.ad }} <a class="dugme-link kucuk" href="{{ url_for('grup_yeni', sinif=s.id) }}">Seç</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% else %}
+    <form method="post" action="{{ url_for('grup_yeni') }}" class="kart">
+      <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+      <input type="hidden" name="sinif" value="{{ sinif.id }}">
+      <p class="gecmis-durum">Sınıf: <strong>{{ sinif.ad }}</strong>
+        {% if siniflar | length > 1 %}· <a href="{{ url_for('grup_yeni') }}">değiştir</a>{% endif %}</p>
+      <label for="grup-ad">Grup adı</label>
+      <input type="text" id="grup-ad" name="ad" maxlength="{{ en_uzun }}" required value="{{ ad }}"
+             placeholder="Örnek: Oyun projesi ekibi">
+      {% if kisiler %}
+      <fieldset class="uye-secimi">
+        <legend>Kimler olsun?</legend>
+        {% for k in kisiler %}
+        <label class="onay-kutusu"><input type="checkbox" name="uye" value="{{ k.id }}" {% if k.id in secili %}checked{% endif %}> {{ k.kullanici_adi }}</label>
+        {% endfor %}
+      </fieldset>
+      <button type="submit">Grubu kur</button>
+      {% else %}
+      <p class="bilgi-notu">Bu sınıfta gruba ekleyebileceğin kimse yok.</p>
+      {% endif %}
+      {% if g.kullanici.rol != 'ogretmen' %}
+      <p class="ipucu-yazi">Sınıfın öğretmeni bu grubu ve mesajlarını görebilir.</p>
+      {% endif %}
+    </form>
+    {% endif %}
+{% endblock %}

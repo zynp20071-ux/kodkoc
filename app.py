@@ -1769,6 +1769,7 @@ def sinif_detay(sinif_id):
                            duyurular=veritabani.sinifin_duyurulari(sinif_id),
                            odevler=veritabani.sinifin_odevleri(sinif_id), bugun=date.today().isoformat(),
                            gruplar=veritabani.sinifin_gruplari(sinif_id),
+                           sohbet_gruplari=veritabani.sinifin_sohbet_gruplari(sinif_id),
                            girmeyenler=girmeyenler(ogrenciler),
                            sablonlar=veritabani.ogretmenin_sablonlari(aktif_id()),
                            akis=veritabani.sinif_etkinlik_akisi(sinif_id),
@@ -2244,6 +2245,8 @@ EN_UZUN_MESAJ = 1000
 EN_FAZLA_MESAJ_DAKIKA = 20       # Bir dakikada en fazla kaç mesaj (sohbeti boğmayı önler)
 EN_UZUN_HAKKIMDA = 300
 YOKLAMA_SANIYESI = 5             # Sohbet sayfası kaç saniyede bir yeni mesaj sorar
+# Her sayfadaki mesaj paneli (taban.html) bu iki ayarı kullanır
+app.jinja_env.globals.update(YOKLAMA_SANIYESI=YOKLAMA_SANIYESI, EN_UZUN_MESAJ=EN_UZUN_MESAJ)
 
 
 # Kötü kelime süzgeci. Kelimenin TAMAMI listedeyse ya da "kök" ile başlıyorsa yıldızlanır.
@@ -2282,18 +2285,27 @@ def mesaj_atabilir_mi(gonderen_id, alici_id):
     return any(k["id"] == alici_id for k in veritabani.mesaj_atabilecegi_kisiler(gonderen_id))
 
 
-def mesaj_metnini_oku():
-    """Formdaki mesajı kontrol eder; uygunsa metni, değilse (mesaj gösterip) None döndürür."""
+def mesaj_metnini_kontrol_et():
+    """
+    Formdaki mesajı kontrol eder: (temiz_metin, hata). Uygunsa hata None olur;
+    boş mesajda ikisi de None (sessizce yok sayılır).
+    """
     metin = request.form.get("metin", "").strip()
     if not metin:
-        return None
+        return None, None
     if len(metin) > EN_UZUN_MESAJ:
-        flash(f"Mesaj en fazla {EN_UZUN_MESAJ} karakter olabilir.", "hata")
-        return None
+        return None, f"Mesaj en fazla {EN_UZUN_MESAJ} karakter olabilir."
     if veritabani.son_dakika_mesaj_sayisi(aktif_id()) >= EN_FAZLA_MESAJ_DAKIKA:
-        flash("Çok hızlı mesaj gönderiyorsun; biraz bekleyip tekrar dene.", "hata")
-        return None
-    return kufur_suz(metin)
+        return None, "Çok hızlı mesaj gönderiyorsun; biraz bekleyip tekrar dene."
+    return kufur_suz(metin), None
+
+
+def mesaj_metnini_oku():
+    """Formdaki mesajı kontrol eder; uygunsa metni, değilse (mesaj gösterip) None döndürür."""
+    metin, hata = mesaj_metnini_kontrol_et()
+    if hata:
+        flash(hata, "hata")
+    return metin
 
 
 def mesaj_sozlugu(m, sinif=None):
@@ -2324,7 +2336,113 @@ def mesajlar():
     konusulanlar = {k["diger_id"] for k in kisiler}
     yeni_kisiler = [k for k in veritabani.mesaj_atabilecegi_kisiler(aktif_id()) if k["id"] not in konusulanlar]
     return render_template("mesajlar.html", siniflar=siniflar, kisiler=kisiler, gruplar=gruplar,
-                           yeni_kisiler=yeni_kisiler)
+                           yeni_kisiler=yeni_kisiler,
+                           grup_kurabilir=bool(veritabani.grup_kurabilecegi_siniflar(aktif_id())))
+
+
+# ---------------------------------------------------------------------------
+# Mesaj paneli: her sayfanın sağ altındaki düğmeyle açılan küçük pencere.
+# Sayfadan çıkmadan sohbet listesini görür, bir sohbeti açıp yazarsın.
+# Sayfa kendisi değişmez; betik aşağıdaki JSON adreslerini kullanır.
+# ---------------------------------------------------------------------------
+
+def yazma_izni(tur, hedef_id):
+    """
+    Bu sohbete yazılabilir mi? (izin, sebep). Sohbeti göremiyorsa 404.
+    tur: 'sinif', 'grup' ya da 'kisi'. Kurallar sohbet sayfalarındakiyle aynı.
+    """
+    if tur == "sinif":
+        sinif = veritabani.sinifta_mi(aktif_id(), hedef_id)
+        if sinif is None:
+            abort(404)
+        if sinif["ogretmen_id"] != aktif_id() and sinif["sohbet_kilitli"]:
+            return False, "Öğretmenin bu sohbeti duyuru kanalı yaptı; şu an sadece o yazabiliyor."
+        return True, ""
+    if tur == "grup":
+        if veritabani.grubu_gorebilir_mi(aktif_id(), hedef_id) is None:
+            abort(404)
+        return True, ""
+    if tur == "kisi":
+        if hedef_id == aktif_id() or veritabani.kullanici_getir(hedef_id) is None:
+            abort(404)
+        if mesaj_atabilir_mi(aktif_id(), hedef_id):
+            return True, ""
+        if not veritabani.ozel_mesajlar(aktif_id(), hedef_id, sinir=1):
+            abort(404)                     # Tanımadığı biri: var olup olmadığı da sızmaz
+        if veritabani.engelledi_mi(aktif_id(), hedef_id) or veritabani.engelledi_mi(hedef_id, aktif_id()):
+            return False, "Engelleme olduğu için bu sohbete yazılamıyor."
+        return False, "Bu kişiyle artık ortak bir sınıfın yok ya da öğretmen özel mesajı kapattı."
+    abort(404)
+
+
+def son_mesaj_ozeti(silindi, metin):
+    return "Bu mesaj silindi" if silindi else (metin if len(metin) <= 60 else metin[:57] + "…")
+
+
+@app.route("/mesajlar/panel", methods=["GET"])
+@giris_gerekli
+def mesaj_paneli():
+    """GET (JSON): Paneldeki sohbet listesi (en yeni mesaj üstte) ve yeni sohbet başlatılabilecek kişiler."""
+    siniflar, kisiler, gruplar = veritabani.sohbet_listesi(aktif_id())
+    sohbetler = []
+    for s in siniflar:
+        sohbetler.append({"tur": "sinif", "id": s["id"], "ad": s["ad"], "alt": "Sınıf sohbeti",
+                          "son": f"{s['son_gonderen']}: {son_mesaj_ozeti(s['son_silindi'], s['son_metin'])}"
+                                 if s["son_zaman"] else "Henüz mesaj yok",
+                          "son_id": s["son_id"] or 0, "zaman_ham": s["son_zaman"] or "",
+                          "okunmamis": int(s["okunmamis"]),
+                          "sayfa": url_for("sinif_sohbeti", sinif_id=s["id"])})
+    for gr in gruplar:
+        sohbetler.append({"tur": "grup", "id": gr["id"], "ad": gr["ad"],
+                          "alt": ("Sohbet grubu · " if gr["olusturan_id"] else "Proje grubu · ") + gr["sinif_adi"],
+                          "son": f"{gr['son_gonderen']}: {son_mesaj_ozeti(gr['son_silindi'], gr['son_metin'])}"
+                                 if gr["son_zaman"] else "Henüz mesaj yok",
+                          "son_id": gr["son_id"] or 0, "zaman_ham": gr["son_zaman"] or "",
+                          "okunmamis": int(gr["okunmamis"]),
+                          "sayfa": url_for("grup_sohbeti", grup_id=gr["id"])})
+    for k in kisiler:
+        sohbetler.append({"tur": "kisi", "id": k["diger_id"], "ad": k["kullanici_adi"],
+                          "alt": "Öğretmen" if k["rol"] == "ogretmen" else "Özel sohbet",
+                          "son": ("Sen: " if k["son_gonderen_id"] == aktif_id() else "")
+                                 + son_mesaj_ozeti(k["son_silindi"], k["son_metin"]),
+                          "son_id": k["son_id"], "zaman_ham": k["son_zaman"] or "",
+                          "okunmamis": int(k["okunmamis"]),
+                          "sayfa": url_for("ozel_sohbet", kisi_id=k["diger_id"])})
+    # En yeni mesajı olan sohbet en üstte. Mesaj id'leri hep artar, saatten daha güvenilir
+    # (aynı saniyede iki mesaj gelse bile sıra doğru olur). Mesajı olmayan sohbetler en altta.
+    sohbetler.sort(key=lambda s: s.pop("son_id"), reverse=True)
+    for s in sohbetler:
+        ham = s.pop("zaman_ham")
+        s["zaman"] = tarih_bicimle(ham) if ham else ""
+    konusulanlar = {k["diger_id"] for k in kisiler}
+    yeni = [{"id": k["id"], "ad": k["kullanici_adi"], "ogretmen": k["rol"] == "ogretmen"}
+            for k in veritabani.mesaj_atabilecegi_kisiler(aktif_id()) if k["id"] not in konusulanlar]
+    return jsonify({"sohbetler": sohbetler, "yeni_kisiler": yeni, "toplam": g.yeni_mesaj})
+
+
+@app.route("/sohbet/gonder", methods=["POST"])
+@giris_gerekli
+def sohbet_gonder():
+    """
+    POST (JSON cevap): Paneldeki betiğin mesaj göndermesi. Formda tur (sinif/grup/kisi), id ve metin.
+    Sayfa yenilenmediği için hata flash ile değil, JSON'daki "hata" ile döner.
+    """
+    tur = request.form.get("tur", "")
+    hedef_id = request.form.get("id", 0, type=int)
+    izin, sebep = yazma_izni(tur, hedef_id)
+    if not izin:
+        return jsonify({"hata": sebep}), 403
+    metin, hata = mesaj_metnini_kontrol_et()
+    if hata:
+        return jsonify({"hata": hata}), 400
+    if metin:
+        if tur == "sinif":
+            veritabani.mesaj_ekle(aktif_id(), metin, sinif_id=hedef_id)
+        elif tur == "grup":
+            veritabani.grup_mesaji_ekle(aktif_id(), hedef_id, metin)
+        else:
+            veritabani.mesaj_ekle(aktif_id(), metin, alici_id=hedef_id)
+    return jsonify({"tamam": True})
 
 
 @app.route("/sinif/<int:sinif_id>/sohbet", methods=["GET", "POST"])
@@ -2431,8 +2549,18 @@ def sohbet_yeni():
             veritabani.okundu_yap(aktif_id(), yeniler[-1]["id"], diger_id=kisi_id)
     else:
         abort(404)
+    cevap = {"mesajlar": yeniler}
+    if sonra == 0:
+        # İlk açılış (mesaj paneli): yazılabilir mi, yazılamıyorsa neden?
+        if sinif_id:
+            izin = yazma_izni("sinif", sinif_id)
+        elif request.args.get("grup", type=int):
+            izin = yazma_izni("grup", request.args.get("grup", type=int))
+        else:
+            izin = yazma_izni("kisi", kisi_id)
+        cevap["yazabilir"], cevap["sebep"] = izin
     # Silebileceği mesajlar için sil düğmesi betikte yok (sayfa yenilenince görünür)
-    return jsonify({"mesajlar": yeniler})
+    return jsonify(cevap)
 
 
 @app.route("/mesaj/<int:mesaj_id>/sil", methods=["POST"])
@@ -2737,8 +2865,13 @@ def grup_sayfasi(grup_id):
     uyeler = [u for u in veritabani.grup_uyeleri_listesi(grup_id) if u["rol"] == "ogrenci"]
     gorevler = veritabani.grup_gorevleri(grup_id)
     pano = {durum: [g_ for g_ in gorevler if g_["durum"] == durum] for durum in GOREV_DURUMLARI}
+    yonetebilir = grup_yonetebilir_mi(grup)
     return render_template("grup.html", grup=grup, uyeler=uyeler, pano=pano, durumlar=GOREV_DURUMLARI,
                            ogretmen_mi=grup["ogretmen_id"] == aktif_id(),
+                           sohbet_grubu=grup["olusturan_id"] is not None, yonetebilir=yonetebilir,
+                           uye_mi=any(u["id"] == aktif_id() for u in uyeler),
+                           eklenebilecekler=(veritabani.grup_eklenebilecekler(aktif_id(), grup["sinif_id"], grup_id)
+                                             if yonetebilir and grup["olusturan_id"] is not None else []),
                            ilerleme=ilerleme_hesapla(len(pano["bitti"]), len(gorevler)), en_uzun=EN_UZUN_GOREV)
 
 
@@ -2803,14 +2936,147 @@ def grup_sohbeti(grup_id):
 
 
 @app.route("/ogretmen/grup/<int:grup_id>/sil", methods=["POST"])
-@ogretmen_gerekli
+@giris_gerekli
 def grup_sil(grup_id):
+    """POST: Grubu siler. Sınıfın öğretmeni her grubu, sohbet grubunu kuran (yöneticisi) kendi grubunu."""
     grup = veritabani.grup_getir(grup_id)
-    if grup is None or grup["ogretmen_id"] != aktif_id():
+    if grup is None or not grup_yonetebilir_mi(grup):
         abort(404)
     veritabani.grup_sil(grup_id)
     flash("Grup silindi (görevleri ve sohbeti dahil).", "bilgi")
-    return redirect(url_for("sinif_detay", sinif_id=grup["sinif_id"]) + "#gruplar")
+    if grup["ogretmen_id"] == aktif_id():
+        return redirect(url_for("sinif_detay", sinif_id=grup["sinif_id"]) + "#gruplar")
+    return redirect(url_for("mesajlar"))
+
+
+# ---------------------------------------------------------------------------
+# Sohbet grupları: kullanıcıların sınıf arkadaşlarıyla kendi kurduğu gruplar
+# (öğretmenin kurduğu proje gruplarıyla aynı tabloyu, sohbeti ve görev panosunu kullanır)
+# ---------------------------------------------------------------------------
+
+EN_UZUN_GRUP_ADI = 40
+EN_FAZLA_GRUP_UYESI = 30
+EN_FAZLA_KURULAN_GRUP = 15        # Bir kişinin kurabileceği en fazla sohbet grubu (boş grup yağmuruna karşı)
+
+
+def grup_yonetebilir_mi(grup):
+    """Grubu yönetebilir mi? Sınıfın öğretmeni her zaman; sohbet grubunda ayrıca grubu kuran (yöneticisi)."""
+    return grup["ogretmen_id"] == aktif_id() or grup["olusturan_id"] == aktif_id()
+
+
+def secilen_uyeler(kullanici_id, sinif_id, grup_id=0):
+    """Formda işaretlenen kişilerden, gerçekten eklenebilecek olanlar (gerisi sessizce atılır)."""
+    secilen = {int(x) for x in request.form.getlist("uye") if x.isdigit()}
+    return [k["id"] for k in veritabani.grup_eklenebilecekler(kullanici_id, sinif_id, grup_id) if k["id"] in secilen]
+
+
+@app.route("/grup/yeni", methods=["GET", "POST"])
+@giris_gerekli
+def grup_yeni():
+    """
+    GET: Sohbet grubu kurma formu (?sinif=3 ile o sınıfın kişileri listelenir).
+    POST: Grubu kurar. Öğrenci sadece özel mesajı açık sınıflarında ve engel olmayan kişilerle kurabilir.
+    """
+    siniflar = veritabani.grup_kurabilecegi_siniflar(aktif_id())
+    sinif_id = request.values.get("sinif", type=int)
+    if sinif_id is None and len(siniflar) == 1:
+        sinif_id = siniflar[0]["id"]
+    sinif = next((s for s in siniflar if s["id"] == sinif_id), None)
+    if sinif_id is not None and sinif is None:
+        abort(404)
+    ad = request.form.get("ad", "").strip()
+
+    if request.method == "POST" and sinif is not None:
+        uyeler = secilen_uyeler(aktif_id(), sinif["id"])
+        if not ad or len(ad) > EN_UZUN_GRUP_ADI:
+            flash(f"Grup adı 1-{EN_UZUN_GRUP_ADI} karakter olmalı.", "hata")
+        elif not uyeler:
+            flash("Gruba en az bir kişi ekle.", "hata")
+        elif len(uyeler) + 1 > EN_FAZLA_GRUP_UYESI:
+            flash(f"Bir grupta en fazla {EN_FAZLA_GRUP_UYESI} kişi olabilir.", "hata")
+        elif veritabani.kurdugu_grup_sayisi(aktif_id()) >= EN_FAZLA_KURULAN_GRUP:
+            flash(f"En fazla {EN_FAZLA_KURULAN_GRUP} grup kurabilirsin; kullanmadığın bir grubu silip tekrar dene.",
+                  "hata")
+        else:
+            grup_id = veritabani.sohbet_grubu_kur(aktif_id(), sinif["id"], kufur_suz(ad), uyeler,
+                                                  g.kullanici["rol"] == "ogrenci")
+            flash("Grup kuruldu. Üyeler “Mesajlar” sayfasında ve mesaj panelinde görecek.", "bilgi")
+            return redirect(url_for("grup_sohbeti", grup_id=grup_id))
+
+    return render_template("grup_yeni.html", siniflar=siniflar, sinif=sinif, ad=ad,
+                           secili={int(x) for x in request.form.getlist("uye") if x.isdigit()},
+                           kisiler=veritabani.grup_eklenebilecekler(aktif_id(), sinif["id"]) if sinif else [],
+                           en_uzun=EN_UZUN_GRUP_ADI)
+
+
+def sohbet_grubunu_bul(grup_id):
+    """Görebildiği bir sohbet grubu mu? (Öğretmenin proje grupları bu işlemlerle değişmez.) Değilse 404."""
+    grup = veritabani.grubu_gorebilir_mi(aktif_id(), grup_id)
+    if grup is None or grup["olusturan_id"] is None:
+        abort(404)
+    return grup
+
+
+@app.route("/grup/<int:grup_id>/uye-ekle", methods=["POST"])
+@giris_gerekli
+def grup_uye_ekle(grup_id):
+    grup = sohbet_grubunu_bul(grup_id)
+    if not grup_yonetebilir_mi(grup):
+        abort(404)
+    uyeler = secilen_uyeler(aktif_id(), grup["sinif_id"], grup_id)
+    mevcut = sum(1 for u in veritabani.grup_uyeleri_listesi(grup_id) if u["rol"] == "ogrenci")
+    if not uyeler:
+        flash("Eklenecek kişiyi seç.", "hata")
+    elif mevcut + len(uyeler) > EN_FAZLA_GRUP_UYESI:
+        flash(f"Bir grupta en fazla {EN_FAZLA_GRUP_UYESI} kişi olabilir.", "hata")
+    else:
+        veritabani.gruba_uye_ekle(grup_id, uyeler)
+        flash("Kişiler gruba eklendi.", "bilgi")
+    return redirect(url_for("grup_sayfasi", grup_id=grup_id) + "#uyeler")
+
+
+@app.route("/grup/<int:grup_id>/cikar", methods=["POST"])
+@giris_gerekli
+def grup_uye_cikar(grup_id):
+    """POST: Yönetici (ya da öğretmen) bir üyeyi gruptan çıkarır."""
+    grup = sohbet_grubunu_bul(grup_id)
+    uye_id = request.form.get("uye", type=int)
+    if not grup_yonetebilir_mi(grup) or uye_id == aktif_id():
+        abort(404)
+    if not any(u["id"] == uye_id and u["rol"] == "ogrenci" for u in veritabani.grup_uyeleri_listesi(grup_id)):
+        abort(404)
+    veritabani.gruptan_cikar(grup_id, uye_id)
+    flash("Kişi gruptan çıkarıldı.", "bilgi")
+    if veritabani.grup_getir(grup_id) is None:          # Son üye de çıktı, grup kalmadı
+        return redirect(url_for("mesajlar"))
+    return redirect(url_for("grup_sayfasi", grup_id=grup_id) + "#uyeler")
+
+
+@app.route("/grup/<int:grup_id>/ayril", methods=["POST"])
+@giris_gerekli
+def grup_ayril(grup_id):
+    """POST: Üye gruptan kendisi ayrılır. Yöneticiyse yöneticilik başka bir üyeye geçer."""
+    sohbet_grubunu_bul(grup_id)
+    if not any(u["id"] == aktif_id() and u["rol"] == "ogrenci" for u in veritabani.grup_uyeleri_listesi(grup_id)):
+        abort(404)
+    veritabani.gruptan_cikar(grup_id, aktif_id())
+    flash("Gruptan ayrıldın.", "bilgi")
+    return redirect(url_for("mesajlar"))
+
+
+@app.route("/grup/<int:grup_id>/ad", methods=["POST"])
+@giris_gerekli
+def grup_ad_degistir(grup_id):
+    grup = sohbet_grubunu_bul(grup_id)
+    if not grup_yonetebilir_mi(grup):
+        abort(404)
+    ad = request.form.get("ad", "").strip()
+    if not ad or len(ad) > EN_UZUN_GRUP_ADI:
+        flash(f"Grup adı 1-{EN_UZUN_GRUP_ADI} karakter olmalı.", "hata")
+    else:
+        veritabani.grup_adini_degistir(grup_id, kufur_suz(ad))
+        flash("Grubun adı değişti.", "bilgi")
+    return redirect(url_for("grup_sayfasi", grup_id=grup_id))
 
 
 # ---------------------------------------------------------------------------

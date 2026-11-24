@@ -110,7 +110,9 @@ Yazılıma yeni başlayanlara **kodu yazmadan** yol gösteren yapay zekâ koçu.
 | `templates/kullanici.html` | Aynı sınıftakilerin görebildiği kullanıcı profili |
 | `templates/kod_dene.html`, `static/python_isci.js` | Tarayıcıda Python çalıştırma (Pyodide, Web Worker) |
 | `templates/odevler.html`, `templates/odev.html`, `templates/odev_teslimleri.html` | Ödevler, teslim ve puanlama |
-| `templates/grup.html` | Grup projesi: görev panosu |
+| `templates/grup.html` | Grup sayfası: görev panosu; sohbet grubunda üyeler ve yönetim |
+| `templates/grup_yeni.html` | Sohbet grubu kurma (sınıf arkadaşlarıyla) |
+| `static/mesaj_paneli.js` | Her sayfanın sağ altındaki mesaj paneli (sayfadan çıkmadan yazışma) |
 | `templates/takvim.html`, `templates/sablonlar.html`, `templates/sablon.html` | Takvim ve öğretmenin proje şablonları |
 | `static/manifest.webmanifest`, `static/sw.js`, `static/ikon-*.png` | Telefona yüklenebilir uygulama (PWA) |
 | `yedek_al.py` | Veritabanı yedeği alma ve geri yükleme |
@@ -204,4 +206,5 @@ olarak verin (testler her seferinde tabloları boşaltır, gerçek veritabanın�
 - [x] 9. hafta: Mini quiz, ödev teslimi ve puanlama, grup projeleri (görev panosu + grup sohbeti)
 - [x] 9. hafta: Proje şablonları, takvim, katılım takibi
 - [x] 9. hafta: Telefona yüklenebilir uygulama (PWA), tarayıcı bildirimleri, e-postayla şifre sıfırlama, yedek
+- [x] 10. hafta: Her sayfadan açılan mesaj paneli, kullanıcıların kendi kurduğu sohbet grupları
 - [ ] Sesli-görüntülü görüşme, profil fotoğrafı

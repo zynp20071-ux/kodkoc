@@ -61,7 +61,8 @@
       <a href="{{ url_for('mesajlar') }}">Mesajlar{% if g.yeni_mesaj %}
         <span class="menu-rozeti" title="{{ g.yeni_mesaj }} okunmamış mesaj">{{ g.yeni_mesaj }}</span>{% endif %}</a>
       <!-- Çıkış bir POST formu: başka bir site, bir bağlantıyla kullanıcıyı habersizce çıkaramasın -->
-      <form method="post" action="{{ url_for('cikis') }}" class="cikis-formu">
+      <form method="post" action="{{ url_for('cikis') }}" class="cikis-formu"
+            onsubmit="try { sessionStorage.removeItem('kodkoc-panel'); } catch (e) {}">
         <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
         <!-- Kullanıcı adına tıklayınca profil sayfası açılır (şifre değiştirme, çalışma serisi) -->
         <a class="kullanici-adi" href="{{ url_for('profil') }}" title="Profilim">{{ g.kullanici.kullanici_adi }}</a>
@@ -119,6 +120,33 @@
       navigator.serviceWorker.register("/sw.js").catch(function () {});
     }
   </script>
+  {% if g.kullanici and request.endpoint not in ('mesajlar', 'sinif_sohbeti', 'ozel_sohbet', 'grup_sohbeti', 'sinif_raporu') %}
+  <!-- Mesaj paneli (10. hafta): her sayfadan sohbetlere ulaşmak için sağ alttaki düğme ve küçük pencere.
+       Sohbet sayfalarında (orada zaten sohbet açık) ve yazdırılan raporda gösterilmez. Betik: static/mesaj_paneli.js -->
+  <button type="button" id="panel-dugmesi" class="panel-dugmesi" aria-expanded="false" aria-controls="mesaj-paneli" hidden>
+    Mesajlar <span class="panel-rozeti" id="panel-rozeti" {% if not g.yeni_mesaj %}hidden{% endif %}>{{ g.yeni_mesaj }}</span>
+  </button>
+  <section id="mesaj-paneli" class="mesaj-paneli" role="dialog" aria-labelledby="panel-baslik" hidden
+           data-csrf="{{ csrf_jetonu() }}" data-saniye="{{ YOKLAMA_SANIYESI }}">
+    <div class="panel-ust">
+      <button type="button" id="panel-geri" class="panel-simge" aria-label="Sohbet listesine dön" hidden>←</button>
+      <strong id="panel-baslik">Mesajlar</strong>
+      <a id="panel-tam" class="panel-tam" href="{{ url_for('mesajlar') }}">Tam ekran</a>
+      <button type="button" id="panel-kapat" class="panel-simge" aria-label="Paneli kapat">×</button>
+    </div>
+    <div id="panel-liste" class="panel-govde"></div>
+    <div id="panel-sohbet" class="panel-govde" hidden>
+      <ol class="mesaj-listesi" id="panel-mesajlar"></ol>
+      <p class="ipucu-yazi" id="panel-not" aria-live="polite"></p>
+    </div>
+    <form id="panel-form" class="panel-form" hidden>
+      <label for="panel-metin" class="gizli">Mesajın</label>
+      <textarea id="panel-metin" rows="2" maxlength="{{ EN_UZUN_MESAJ }}" placeholder="Mesajını yaz… (Enter: gönder)"></textarea>
+      <button type="submit">Gönder</button>
+    </form>
+  </section>
+  <script src="{{ url_for('static', filename='mesaj_paneli.js') }}"></script>
+  {% endif %}
   {% if g.kullanici %}
   <script>
     // Bildirimler: 30 saniyede bir okunmamış sayısını sor. Sekme başlığında göster;
@@ -131,6 +159,8 @@
           .then(function (s) {
             if (!s) return;
             document.title = (s.toplam ? "(" + s.toplam + ") " : "") + baslik;
+            var rozet = document.getElementById("panel-rozeti");      // Mesaj paneli düğmesindeki sayı
+            if (rozet) { rozet.textContent = s.mesaj; rozet.hidden = !s.mesaj; }
             var onceki = parseInt(sessionStorage.getItem("kodkoc-sayi") || "0", 10);
             sessionStorage.setItem("kodkoc-sayi", s.toplam);
             if (s.toplam > onceki && document.hidden && window.Notification && Notification.permission === "granted") {

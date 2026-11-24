@@ -8,7 +8,7 @@
     <p class="etiket"><a href="{{ url_for('mesajlar') }}" class="geri-baglanti">← Mesajlar</a></p>
     <div class="sohbet-ust">
       <h1>{% if kisi %}<a href="{{ url_for('profil_goster', kullanici_id=kisi.id) }}">{{ baslik }}</a>{% else %}{{ baslik }}{% endif %}</h1>
-      <span class="gecmis-durum">{% if sinif %}Sınıf sohbeti · {{ uyeler | length }} kişi{% elif grup %}Grup sohbeti · {{ grup.sinif_adi }} · <a href="{{ url_for('grup_sayfasi', grup_id=grup.id) }}">Görev panosu</a>{% else %}Özel sohbet{% endif %}</span>
+      <span class="gecmis-durum">{% if sinif %}Sınıf sohbeti · {{ uyeler | length }} kişi{% elif grup %}{{ 'Sohbet grubu' if grup.olusturan_id else 'Grup sohbeti' }} · {{ grup.sinif_adi }} · <a href="{{ url_for('grup_sayfasi', grup_id=grup.id) }}">{{ 'Grup bilgisi ve görevler' if grup.olusturan_id else 'Görev panosu' }}</a>{% else %}Özel sohbet{% endif %}</span>
     </div>
 
     {% if sinif or grup %}
@@ -78,7 +78,7 @@
                 placeholder="Mesajını yaz… (Enter: gönder, Shift+Enter: yeni satır)"></textarea>
       <button type="submit">Gönder</button>
     </form>
-    <p class="ipucu-yazi">Saygılı ol; öğretmenin sınıf sohbetindeki mesajları silebilir.</p>
+    <p class="ipucu-yazi">Saygılı ol; öğretmenin sınıf ve grup sohbetlerindeki mesajları görebilir ve silebilir.</p>
     {% elif sinif %}
     <p class="bilgi-notu" id="yaz">Öğretmenin bu sohbeti duyuru kanalı yaptı; şu an sadece o yazabiliyor.</p>
     {% else %}

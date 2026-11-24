@@ -6,14 +6,74 @@
 {% block icerik %}
     <p class="etiket">
       {% if ogretmen_mi %}<a href="{{ url_for('sinif_detay', sinif_id=grup.sinif_id) }}#gruplar" class="geri-baglanti">← {{ grup.sinif_adi }}</a>
+      {% elif sohbet_grubu %}<a href="{{ url_for('mesajlar') }}" class="geri-baglanti">← Mesajlar</a>
       {% else %}<a href="{{ url_for('sinifim') }}" class="geri-baglanti">← Sınıfım</a>{% endif %}
     </p>
     <div class="sohbet-ust">
       <h1>{{ grup.ad }}</h1>
       <a class="dugme-link" href="{{ url_for('grup_sohbeti', grup_id=grup.id) }}">Grup sohbeti</a>
     </div>
+    {% if sohbet_grubu %}
+    <!-- Sohbet grubu: üyeler ve (yöneticiyse) grup ayarları -->
+    <p class="gecmis-durum">Sohbet grubu · {{ grup.sinif_adi }} · Sınıfın öğretmeni bu grubu görebilir.</p>
+    <section class="kart" id="uyeler">
+      <p class="ipucu-etiket">Üyeler ({{ uyeler | length }})</p>
+      <ul class="kisi-listesi">
+        {% for u in uyeler %}
+        <li>
+          <a href="{{ url_for('profil_goster', kullanici_id=u.id) }}">{{ u.kullanici_adi }}</a>
+          {% if u.id == grup.olusturan_id %}<span class="ogretmen-etiketi">Yönetici</span>{% endif %}
+          {% if yonetebilir and u.id != g.kullanici.id %}
+          <form method="post" action="{{ url_for('grup_uye_cikar', grup_id=grup.id) }}"
+                onsubmit="return confirm('Bu kişi gruptan çıkarılsın mı?');">
+            <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+            <input type="hidden" name="uye" value="{{ u.id }}">
+            <button type="submit" class="isaret">Çıkar</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if yonetebilir %}
+      {% if eklenebilecekler %}
+      <details>
+        <summary>Kişi ekle</summary>
+        <form method="post" action="{{ url_for('grup_uye_ekle', grup_id=grup.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <fieldset class="uye-secimi">
+            <legend class="gizli">Eklenecek kişiler</legend>
+            {% for k in eklenebilecekler %}
+            <label class="onay-kutusu"><input type="checkbox" name="uye" value="{{ k.id }}"> {{ k.kullanici_adi }}</label>
+            {% endfor %}
+          </fieldset>
+          <button type="submit" class="ikincil">Ekle</button>
+        </form>
+      </details>
+      {% endif %}
+      <details>
+        <summary>Grubun adını değiştir</summary>
+        <form method="post" action="{{ url_for('grup_ad_degistir', grup_id=grup.id) }}" class="satir-form">
+          <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+          <label for="yeni-ad" class="gizli">Yeni ad</label>
+          <div class="satir">
+            <input type="text" id="yeni-ad" name="ad" maxlength="40" required value="{{ grup.ad }}">
+            <button type="submit" class="ikincil">Kaydet</button>
+          </div>
+        </form>
+      </details>
+      {% endif %}
+      {% if uye_mi %}
+      <form method="post" action="{{ url_for('grup_ayril', grup_id=grup.id) }}"
+            onsubmit="return confirm('Gruptan ayrılmak istediğine emin misin?');">
+        <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">
+        <button type="submit" class="sil">Gruptan ayrıl</button>
+      </form>
+      {% endif %}
+    </section>
+    {% else %}
     <p class="gecmis-durum">{{ grup.sinif_adi }} · Üyeler:
       {% for u in uyeler %}<a href="{{ url_for('profil_goster', kullanici_id=u.id) }}">{{ u.kullanici_adi }}</a>{{ ', ' if not loop.last }}{% else %}henüz yok{% endfor %}</p>
+    {% endif %}
     {% if grup.proje %}<section class="kart"><p class="ipucu-etiket">Grubun projesi</p><p class="hakkimda-metni">{{ grup.proje }}</p></section>{% endif %}
 
     <div class="ilerleme-satiri">
@@ -65,7 +125,7 @@
       {% endfor %}
     </div>
 
-    {% if ogretmen_mi %}
+    {% if yonetebilir %}
     <form method="post" action="{{ url_for('grup_sil', grup_id=grup.id) }}"
           onsubmit="return confirm('Grup, görevleri ve sohbeti silinsin mi?');">
       <input type="hidden" name="csrf" value="{{ csrf_jetonu() }}">

@@ -774,7 +774,7 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 }
 
 /* Yeni yorum bildirimi ve CSV indirme (8. hafta) */
-.menu-rozeti {
+.menu-rozeti, .panel-rozeti {
   display: inline-block;
   min-width: 20px;
   margin-left: 4px;
@@ -1448,3 +1448,89 @@ button.cikis:hover { color: var(--vurgu); background: none; }
 .sablon-onizleme p { margin: 2px 0 0; white-space: pre-wrap; color: var(--yumusak); font-size: 14px; }
 
 .panel-baglantilari { margin: -6px 0 14px; font-weight: 600; }
+
+/* --- Mesaj paneli (10. hafta): her sayfanın sağ altındaki düğme ve küçük sohbet penceresi --- */
+.panel-dugmesi {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  margin: 0;
+  padding: 12px 18px;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.panel-rozeti[hidden] { display: none; }
+.panel-dugmesi .panel-rozeti { background: var(--dugme-yazi); color: var(--vurgu); }
+.mesaj-paneli {
+  position: fixed;
+  right: 20px;
+  bottom: 80px;
+  z-index: 50;
+  width: 370px;
+  height: min(580px, calc(100vh - 110px));
+  display: flex;
+  flex-direction: column;
+  background: var(--zemin);
+  border: 1px solid var(--cizgi);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+.mesaj-paneli[hidden] { display: none; }
+.panel-ust {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--kart);
+  border-bottom: 1px solid var(--cizgi);
+}
+.panel-ust strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-tam { font-size: 13px; color: var(--vurgu); }
+.panel-simge {
+  margin: 0;
+  padding: 2px 10px;
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--koyu);
+  background: transparent;
+  border: 1px solid var(--cizgi);
+}
+.panel-simge:hover { background: var(--vurgu-acik); }
+.panel-govde { flex: 1; overflow-y: auto; padding: 10px 12px; }
+.panel-govde[hidden] { display: none; }
+.panel-govde .mesaj-listesi { margin: 0 0 8px; }
+.panel-govde .mesaj { max-width: 88%; font-size: 15px; }
+.panel-listesi { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.panel-ogesi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 400;
+  color: var(--koyu);
+  background: var(--kart);
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+}
+.panel-ogesi:hover { background: var(--kart); border-color: var(--vurgu); }
+.panel-ogesi.kisa { flex-direction: row; font-weight: 600; }
+.panel-oge-ust { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.panel-oge-alt { font-size: 12px; color: var(--gri); }
+.panel-ogesi .sohbet-son { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-yeni summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+.panel-grup-kur { display: inline-block; margin-top: 6px; font-weight: 600; color: var(--vurgu); }
+.panel-form { display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--cizgi); background: var(--kart); }
+.panel-form[hidden] { display: none; }
+.panel-form textarea { flex: 1; margin: 0; min-height: 0; resize: none; }
+.panel-form button { margin: 0; }
+@media (max-width: 600px) {
+  /* Telefonda panel bütün ekranı kaplar */
+  .mesaj-paneli { inset: 0; width: auto; height: auto; border-radius: 0; }
+  .panel-dugmesi { right: 14px; bottom: 14px; }
+}
+@media print { .panel-dugmesi, .mesaj-paneli { display: none !important; } }

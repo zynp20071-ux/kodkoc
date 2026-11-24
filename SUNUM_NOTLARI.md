@@ -555,3 +555,51 @@ Sunucular genelde dünya saatiyle (UTC) çalışıyor; Türkiye 3 saat ileride. 
 - [ ] HTTPS, güvenlik başlıkları (CSP, HSTS), ara sunucu (proxy)
 - [ ] gunicorn, worker, sağlık kontrolü, `render.yaml`
 - [ ] git: depo, `.gitignore`, commit
+
+---
+
+## 11. 10. hafta: Mesaj paneli ve sohbet grupları
+
+### Tek cümlede
+Mesajlaşma artık bir "sayfa" değil, uygulamanın her yerinden açılan bir panel; öğrenciler de sınıf arkadaşlarıyla kendi sohbet gruplarını kurabiliyor.
+
+### Hangi özellik kodda nerede?
+| Özellik | Dosya / fonksiyon |
+|---|---|
+| Sağ alttaki düğme ve panel | `templates/taban.html` (HTML), `static/mesaj_paneli.js` (betik), `style.css` "Mesaj paneli" bölümü |
+| Panelin sohbet listesi (JSON) | `app.py` → `mesaj_paneli()` (`/mesajlar/panel`) |
+| Panelden mesaj gönderme (JSON) | `app.py` → `sohbet_gonder()` (`/sohbet/gonder`), yetki: `yazma_izni()` |
+| Sohbet grubu kurma | `app.py` → `grup_yeni()`, `templates/grup_yeni.html`; `veritabani.sohbet_grubu_kur()` |
+| Kimler eklenebilir? | `veritabani.grup_eklenebilecekler()` (aynı sınıf + özel mesaj açık + engel yok) |
+| Kişi ekle / çıkar / ad / ayrıl / sil | `grup_uye_ekle()`, `grup_uye_cikar()`, `grup_ad_degistir()`, `grup_ayril()`, `grup_sil()` |
+| Yönetici ayrılınca | `veritabani.gruptan_cikar()` ve `_yoneticiligi_devret()` |
+| Testler | `tests/test_sohbet_gruplari.py` (15 test) |
+
+### Nasıl çalışıyor?
+- `gruplar` tablosuna **tek bir sütun** ekledim: `olusturan_id`. Boşsa öğretmenin proje grubu, doluysa birinin kurduğu sohbet grubu. Böylece görev panosu, grup sohbeti, bildirme, engelleme, mesaj silme hiç değişmeden iki tür grupta da çalışıyor.
+- Panel sayfayı yenilemiyor. Betik sunucuya `fetch` ile soruyor, cevap JSON. Açık sohbette 5 saniyede bir yeni mesaj soruyor (yoklama). Sekme arkadaysa sormuyor.
+- Başka sayfaya geçince panel aynı sohbetle açık kalıyor: durum `sessionStorage`'da (sekme kapanınca silinir, çıkış yapınca da siliniyor). Telefonda panel bütün ekranı kapladığı için orada kendiliğinden açılmıyor.
+
+### Hocanın sorabileceği sorular
+**Öğrenciler kendi aralarında grup kurunca zorbalık riski artmaz mı?**
+Kurallar özel mesajla aynı: sadece aynı sınıftakiler, öğretmen sınıfta öğrenciler arası mesajı kapattıysa grup da kurulamıyor, engellenen kişi eklenemiyor. Sınıfın öğretmeni öğrencilerin kurduğu grupları sınıf sayfasında görüyor, açıp okuyabiliyor, mesaj ve grup silebiliyor; bunu gruptakiler de biliyor (grup sayfasında ve gizlilik sayfasında yazıyor). Bildir düğmesi grup mesajlarında da var.
+
+**Öğretmen her grubu görüyorsa mesaj listesi dolmaz mı?**
+Hayır. Öğrencilerin kurduğu gruplar öğretmenin mesaj listesine ve okunmamış sayısına girmiyor (`_GRUPLARI` sorgusunda `olusturan_id IS NULL OR olusturan_id = öğretmen`). Öğretmen bakmak isterse sınıf sayfasından açıyor.
+
+**Panel neden ayrı bir `.js` dosyası, öteki betikler sayfanın içinde?**
+Panel her sayfada var ve 250 satırdan uzun. Ayrı dosya olunca tarayıcı bir kez indirip saklıyor, her sayfada tekrar göndermiyoruz; okuması da kolay.
+
+**Panelden giden mesaj güvenli mi?**
+Sayfadaki formlarla aynı kontroller: CSRF jetonu (`data-csrf`), uzunluk sınırı, dakikada 20 mesaj, kötü kelime süzgeci, yetki kontrolü. Hata olursa sunucu `{"hata": "..."}` döndürüyor, panel bunu gösteriyor. Mesajlar ekrana `textContent` ile yazılıyor, kod olarak çalışmıyor.
+
+**Neden WebSocket değil de yoklama?**
+WebSocket'te sunucu yeni mesajı kendisi gönderir, daha anlık olur. Ama ücretsiz Render'da sürekli açık bağlantılar ve gunicorn ayarı gerektirir. Sınıf ölçeğinde 5 saniyelik yoklama yeterli ve basit.
+
+### Bu hafta öğrendiğim kavramlar
+- [ ] `fetch` ile JSON isteği, `FormData`, sayfayı yenilemeden güncelleme
+- [ ] `sessionStorage` ile `localStorage` farkı
+- [ ] Erişilebilirlik: `aria-expanded`, `role="dialog"`, Esc ile kapatma
+- [ ] Bir tabloya tür sütunu ekleyip aynı altyapıyı iki iş için kullanmak
+- [ ] Sahipliği devretmek (yönetici ayrılınca)
+

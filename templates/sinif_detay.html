@@ -302,6 +302,20 @@
         {% endfor %}
       </ul>
       {% endif %}
+      {% if sohbet_gruplari %}
+      <!-- Öğrencilerin kendi kurduğu sohbet grupları: öğretmen açıp bakabilir, gerekirse mesaj silebilir -->
+      <details>
+        <summary>Öğrencilerin kurduğu sohbet grupları ({{ sohbet_gruplari | length }})</summary>
+        <ul class="odev-listesi">
+          {% for gr in sohbet_gruplari %}
+          <li>
+            <a href="{{ url_for('grup_sohbeti', grup_id=gr.id) }}"><strong>{{ gr.ad }}</strong></a>
+            <span class="gecmis-durum">Kuran: {{ gr.kuran }} · {{ gr.uye_sayisi }} üye</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
     </section>
 
     <!-- Ödevler: son tarihli ödev ver, teslimleri gör ve puanla -->

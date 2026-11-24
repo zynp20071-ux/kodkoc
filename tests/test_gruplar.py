@@ -122,7 +122,7 @@ def test_grup_ve_sinif_silme(sinif):
     grup_id = grup_kur(sinif)
     sinif["ali"].post(f"/grup/{grup_id}/gorev", data={"metin": "x"})
     sinif["ali"].post(f"/grup/{grup_id}/sohbet", data={"metin": "y"})
-    assert sinif["ali"].post(f"/ogretmen/grup/{grup_id}/sil").status_code == 302   # Öğrenci silemez
+    assert sinif["ali"].post(f"/ogretmen/grup/{grup_id}/sil").status_code == 404   # Öğrenci silemez
     assert veritabani.grup_getir(grup_id) is not None
     sinif["hoca"].post(f"/ogretmen/grup/{grup_id}/sil")
     assert veritabani.grup_getir(grup_id) is None
